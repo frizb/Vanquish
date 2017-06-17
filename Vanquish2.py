@@ -7,9 +7,12 @@
 # TODO: Append the exact command that is used to the output text files for easy refernce in documentation
 # TODO: Create a suggest only mode that dumps a list of commands to try rather than running anything
 # TODO: Fix TCP / UDP / Multi Nmap scan merging - When multiple scans have the same port info,we get duplicate entries
+
 # Starts Fast moves to Through
-# 1. NMAP Scan / Mascan
+# 1. NMAP Scan
 # 2. Service Enumeration Scan
+#
+# TODO:
 # 3. Word list creation 1st pass
 #       Banner Grab
 #       HTTP Enum
@@ -54,6 +57,96 @@ import threading
 import xml.etree.ElementTree as ET
 from multiprocessing.dummy import Pool as ThreadPool
 
+
+# PROGRESS BAR - Thank you! clint.textui.progress
+BAR_TEMPLATE = '%s[%s%s] %i/%i - %s\r'
+DOTS_CHAR = '.'
+BAR_FILLED_CHAR = '#'
+BAR_EMPTY_CHAR = ' '
+ETA_INTERVAL = 1
+ETA_SMA_WINDOW = 9
+STREAM = sys.stderr
+class Bar(object):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.done()
+        return False  # we're not suppressing exceptions
+
+    def __init__(self, label='', width=32, hide=None, empty_char=BAR_EMPTY_CHAR,
+                 filled_char=BAR_FILLED_CHAR, expected_size=None, every=1):
+        self.label = label
+        self.width = width
+        self.hide = hide
+        # Only show bar in terminals by default (better for piping, logging etc.)
+        if hide is None:
+            try:
+                self.hide = not STREAM.isatty()
+            except AttributeError:  # output does not support isatty()
+                self.hide = True
+        self.empty_char =    empty_char
+        self.filled_char =   filled_char
+        self.expected_size = expected_size
+        self.every =         every
+        self.start =         time.time()
+        self.ittimes =       []
+        self.eta =           0
+        self.etadelta =      time.time()
+        self.etadisp =       self.format_time(self.eta)
+        self.last_progress = 0
+        if (self.expected_size):
+            self.show(0)
+
+    def show(self, progress, count=None):
+        if count is not None:
+            self.expected_size = count
+        if self.expected_size is None:
+            raise Exception("expected_size not initialized")
+        self.last_progress = progress
+        if (time.time() - self.etadelta) > ETA_INTERVAL:
+            self.etadelta = time.time()
+            self.ittimes = \
+                self.ittimes[-ETA_SMA_WINDOW:] + \
+                    [-(self.start - time.time()) / (progress+1)]
+            self.eta = \
+                sum(self.ittimes) / float(len(self.ittimes)) * \
+                (self.expected_size - progress)
+            self.etadisp = self.format_time(self.eta)
+        x = int(self.width * progress / self.expected_size)
+        if not self.hide:
+            if ((progress % self.every) == 0 or      # True every "every" updates
+                (progress == self.expected_size)):   # And when we're done
+                STREAM.write(BAR_TEMPLATE % (
+                    self.label, self.filled_char * x,
+                    self.empty_char * (self.width - x), progress,
+                    self.expected_size, self.etadisp))
+                STREAM.flush()
+
+    def done(self):
+        self.elapsed = time.time() - self.start
+        elapsed_disp = self.format_time(self.elapsed)
+        if not self.hide:
+            # Print completed bar with elapsed time
+            STREAM.write(BAR_TEMPLATE % (
+                self.label, self.filled_char * self.width,
+                self.empty_char * 0, self.last_progress,
+                self.expected_size, elapsed_disp))
+            STREAM.write('\n')
+            STREAM.flush()
+
+    def format_time(self, seconds):
+        return time.strftime('%H:%M:%S', time.gmtime(seconds))
+
+
+def bar(it, label='', width=32, hide=None, empty_char=BAR_EMPTY_CHAR,
+        filled_char=BAR_FILLED_CHAR, expected_size=8, every=1):
+    with Bar(label=label, width=width, hide=hide, empty_char=BAR_EMPTY_CHAR,
+             filled_char=BAR_FILLED_CHAR, expected_size=expected_size, every=every) \
+            as bar:
+        for i, item in enumerate(it):
+            yield item
+            bar.show(i + 1)
 class logger:
     DEBUG = False;
     VERBOSE = False;
@@ -90,7 +183,7 @@ class Vanquish:
         self.parser.add_argument("-noResume", action='store_true', help='do not resume a previous session')
         self.parser.add_argument("-range", metavar='IPs', type=str, nargs="+", default="",
                                  help='a range to scan ex: 10.10.10.0/24')
-        self.parser.add_argument("-threadPool", metavar='threads', type=int,  default="16",
+        self.parser.add_argument("-threadPool", metavar='threads', type=int,  default="8",
                             help='Thread Pool Size (default: %(default)s)')
         self.parser.add_argument("-verbose", action='store_true', help='display verbose details during the scan')
         self.parser.add_argument("-debug", action='store_true', help='display debug details during the scan')
@@ -136,10 +229,12 @@ class Vanquish:
             else:
                 self.phase_commands.append(command)
                 logger.debug("scan_hosts() - command : " + command)
-        results = pool.map(self.execute_scan, self.phase_commands)
+
+        #results = pool.map(self.execute_scan, self.phase_commands)
+        for _ in bar(pool.imap_unordered(self.execute_scan, self.phase_commands), expected_size=len(self.phase_commands)):
+            pass
         pool.close()
         pool.join()
-        print results
 
     def execute_scan(self, command):
         logger.debug("execute_scan() - " + command)
@@ -148,6 +243,7 @@ class Vanquish:
 
     # Parse Nmap XML - Reads all the Nmap xml files in the Nmap folder
     def parse_nmap_xml(self):
+        print "[+] Reading Nmap XML Output Files..."
         port_attribs_to_read = ['protocol', 'portid']
         service_attribs_to_read = ['name', 'product', 'version', 'hostname', 'extrainfo']
         state_attribs_to_read = ['state']
@@ -228,10 +324,11 @@ class Vanquish:
                             logger.debug("\tenumerate() - NO command section found for phase: " + phase_name +
                                          " service name: "+known_service )
         pool = ThreadPool(self.args.threadPool)
-        results = pool.map(self.execute_enumeration, self.phase_commands)
+        #results = pool.map(self.execute_enumeration, self.phase_commands)
+        for _ in bar(pool.imap_unordered(self.execute_enumeration, self.phase_commands), expected_size=len(self.phase_commands)):
+            pass
         pool.close()
         pool.join()
-        print results
 
     def execute_enumeration(self,enumerate_command):
         logger.debug("execute_enumeration() - " + enumerate_command)
@@ -284,7 +381,7 @@ class Vanquish:
 
     @staticmethod
     def banner_flame():
-        print '                  )             (   (       )  '
+        print '\n                  )             (   (       )  '
         print '         (     ( /(   (         )\ ))\ ) ( /(  '
         print ' (   (   )\    )\())( )\     ( (()/(()/( )\()) '
         print ' )\  )((((_)( ((_)\ )((_)    )\ /(_))(_)|(_)\  '
@@ -296,7 +393,7 @@ class Vanquish:
 
     @staticmethod
     def banner_doom():
-        print ' __      __     _   _  ____  _    _ _____  _____ _    _ '
+        print '\n __      __     _   _  ____  _    _ _____  _____ _    _ '
         print ' \ \    / /\   | \ | |/ __ \| |  | |_   _|/ ____| |  | |'
         print '  \ \  / /  \  |  \| | |  | | |  | | | | | (___ | |__| |'
         print '   \ \/ / /\ \ | . ` | |  | | |  | | | |  \___ \|  __  |'
@@ -306,7 +403,7 @@ class Vanquish:
 
     @staticmethod
     def banner_block():
-        print ' __   ___   _  _  ___  _   _ ___ ___ _  _ '
+        print '\n __   ___   _  _  ___  _   _ ___ ___ _  _ '
         print ' \ \ / /_\ | \| |/ _ \| | | |_ _/ __| || |'
         print '  \ V / _ \| .` | (_) | |_| || |\__ \ __ |'
         print '   \_/_/ \_\_|\_|\__\_\\\\___/|___|___/_||_|'
@@ -317,11 +414,12 @@ class Vanquish:
     ##################################################################################
 
     def main(self):
+        start_time = time.time()
         #sys.stderr = open("errorlog.txt", 'w')
-        print("[+] Configuration file: \t" + str(self.args.configFile))
-        print("[+] Attack plan file: \t" + str(self.args.attackPlanFile))
-        print("[+] Output Path: \t\t\t" + str(self.args.outputFolder))
-        print("[+] Host File: \t\t\t" + str(self.args.hostFile))
+        print("[+] Configuration file: " + str(self.args.configFile))
+        print("[+] Attack plan file:   " + str(self.args.attackPlanFile))
+        print("[+] Output Path:        " + str(self.args.outputFolder))
+        print("[+] Host File:          " + str(self.args.hostFile.name))
         logger.debug("DEBUG MODE ENABLED!")
         logger.verbose("VERBOSE MODE ENABLED!")
 
@@ -337,8 +435,8 @@ class Vanquish:
         # Start up front NMAP port scans
         print "[+] Starting upfront Nmap Scan..."
         for scan_command in self.plan.get("Scans Start", "Order").split(","):
+            print "[+] Starting Scan Type: " + scan_command
             self.upfront_scan_hosts(self.hosts, scan_command)
-        print "\t[-] Scanning complete!"
 
         print "[+] Starting background Nmap Scan..."
         # Start background Nmap port scans ... these will take time and will run concurrently with enumeration
@@ -355,9 +453,10 @@ class Vanquish:
         for phase in self.plan.get("Enumeration Plan","Order").split(","):
             self.parse_nmap_xml()
             self.write_report_file(self.nmap_dict)
-            print "\t[-] Starting Phase: " + phase
+            print "[+] Starting Phase: " + phase
             self.enumerate(phase)
 
+        print "[+] Elapsed Time: " + time.strftime('%H:%M:%S', time.gmtime(time.time() - start_time))
         logger.verbose("Goodbye!")
         return 0
 
