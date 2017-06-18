@@ -7,14 +7,14 @@
 # TODO: Append the exact command that is used to the output text files for easy refernce in documentation
 # TODO: Create a suggest only mode that dumps a list of commands to try rather than running anything
 # TODO: Fix TCP / UDP / Multi Nmap scan merging - When multiple scans have the same port info,we get duplicate entries
-
+# TODO: Do not enum closed or filtered ports
 # Starts Fast moves to Through
 # 1. NMAP Scan
 # 2. Service Enumeration Scan
 #
 # TODO:
 # 3. Word list creation 1st pass
-#       Banner Grab
+#       Banner Grabx
 #       HTTP Enum
 #       Spider site
 #       HTTP Download all assets
@@ -276,18 +276,38 @@ class Vanquish:
                                 for attribute in port.iter(xml_element):
                                     if attribute is not None:
                                         self.xml_to_dict(service_attribs_to_read, attribute, element_dict)
+                                        logger.verbose("NMAP XML PARSE: Port: " + element_dict['portid'])
                                         if attribute.get('hostname', '') is not '':
                                             self.nmap_dict[addr]['hostname'] = attribute.get('hostname', '')
-                            if self.nmap_dict[addr].get("ports", '') is not '' and filter(
-                                    lambda dict_ports: dict_ports['portid'] == element_dict['portid'],
-                                    self.nmap_dict[addr]['ports']).__len__() == 0:
-                            # Port exists already?  Dont append
-                                port_dict.append(element_dict)
+                                        if self.nmap_dict[addr].get("ports", '') is not '' and filter(
+                                                lambda dict_ports: dict_ports['portid'] == element_dict['portid'],
+                                                self.nmap_dict[addr]['ports']).__len__() == 0:
+                                                    logger.verbose("NMAP XML PARSE: Port already Exsits: "+element_dict['portid'] )
+                                        else:
+                                            logger.verbose("NMAP XML PARSE: Append: " + element_dict['portid'])
+                                            port_dict.append(element_dict)
                         if self.nmap_dict[addr].get('ports', None) is None:
+                            logger.verbose("NMAP XML PARSE: NEW MAP")
                             self.nmap_dict[addr]['ports'] = port_dict
                         else:
+                            logger.verbose("NMAP XML PARSE: MAP MERGE")
                             self.nmap_dict[addr]['ports'] = self.nmap_dict[addr]['ports'] + port_dict
             logger.verbose("NMAP XML PARSE: - Finished NMAP Dict Creation:\n " + str(self.nmap_dict))
+
+    # find exploits from exploit db and copy them to service folder
+    # TODO: Copy results to service folders - update nmap_dict with other web app etc products and versions...
+    def exploit_search(self):
+        logger.debug("exploit_search()")
+        # Check nmap_dict
+        self.phase_commands = []
+        for host in self.nmap_dict:
+            for service in self.nmap_dict[host]['ports']:
+                if service.get('product', '') is not '' and service.get('version','') is not '':
+                    version_digits = ' '.join(str(x) for x in re.findall(r'\d+',service.get('version','')))
+                    stream = os.popen('searchsploit --json '+service.get('product', '')+" "+version_digits)
+                    json_results = stream.read()
+                    stream.close()
+                    print json_results
 
     # Enumerate a phase
     # phases are defined in attackplan.ini
@@ -453,8 +473,12 @@ class Vanquish:
         for phase in self.plan.get("Enumeration Plan","Order").split(","):
             self.parse_nmap_xml()
             self.write_report_file(self.nmap_dict)
+            # print "[+] Starting upfront Nmap Scan..."
+            # TODO Search for exploits
+            #self.exploit_search()
             print "[+] Starting Phase: " + phase
             self.enumerate(phase)
+
 
         print "[+] Elapsed Time: " + time.strftime('%H:%M:%S', time.gmtime(time.time() - start_time))
         logger.verbose("Goodbye!")
