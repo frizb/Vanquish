@@ -8,6 +8,7 @@
 # TODO: Create a suggest only mode that dumps a list of commands to try rather than running anything
 # TODO: Fix TCP / UDP / Multi Nmap scan merging - When multiple scans have the same port info,we get duplicate entries
 # TODO: Do not enum closed or filtered ports
+# TODO: Command replacer for lists of users, passwords and directory lists
 # Starts Fast moves to Through
 # 1. NMAP Scan
 # 2. Service Enumeration Scan
@@ -147,6 +148,7 @@ def bar(it, label='', width=32, hide=None, empty_char=BAR_EMPTY_CHAR,
         for i, item in enumerate(it):
             yield item
             bar.show(i + 1)
+
 class logger:
     DEBUG = False;
     VERBOSE = False;
@@ -245,8 +247,8 @@ class Vanquish:
     def parse_nmap_xml(self):
         print "[+] Reading Nmap XML Output Files..."
         port_attribs_to_read = ['protocol', 'portid']
-        service_attribs_to_read = ['name', 'product', 'version', 'hostname', 'extrainfo']
-        state_attribs_to_read = ['state']
+        service_attribs_to_read = ['name', 'product', 'version', 'extrainfo', 'method']
+        state_attribs_to_read = ['state','reason']
         xml_nmap_elements = {'service': service_attribs_to_read, 'state': state_attribs_to_read}
         searchAddress = {'path': 'address', 'el': 'addr'}
         searchPorts = {'path': 'ports', 'el': 'portid'}
@@ -271,21 +273,29 @@ class Vanquish:
                         port_dict = []
                         for port in find_ports.iter('port'):
                             element_dict = {}
+                            attribute_dict = {}
                             self.xml_to_dict(port_attribs_to_read, port, element_dict)
+                            logger.verbose("NMAP XML PARSE: Port: " + element_dict['portid'])
                             for xml_element in xml_nmap_elements:
                                 for attribute in port.iter(xml_element):
                                     if attribute is not None:
-                                        self.xml_to_dict(service_attribs_to_read, attribute, element_dict)
-                                        logger.verbose("NMAP XML PARSE: Port: " + element_dict['portid'])
+                                        self.xml_to_dict(xml_nmap_elements[xml_element], attribute, attribute_dict)
+                                        element_dict = self.merge_two_dicts(element_dict,attribute_dict)
                                         if attribute.get('hostname', '') is not '':
                                             self.nmap_dict[addr]['hostname'] = attribute.get('hostname', '')
-                                        if self.nmap_dict[addr].get("ports", '') is not '' and filter(
-                                                lambda dict_ports: dict_ports['portid'] == element_dict['portid'],
-                                                self.nmap_dict[addr]['ports']).__len__() == 0:
-                                                    logger.verbose("NMAP XML PARSE: Port already Exsits: "+element_dict['portid'] )
-                                        else:
-                                            logger.verbose("NMAP XML PARSE: Append: " + element_dict['portid'])
-                                            port_dict.append(element_dict)
+                            # Check to see if this port already exists
+                            port_was_merged=False
+                            if self.nmap_dict[addr].get('ports',None) is not None:
+                                for pos,port in enumerate(self.nmap_dict[addr]['ports']):
+                                    if port['portid'] == element_dict['portid']:
+                                        port_was_merged = True
+                                        logger.verbose("NMAP XML PARSE: Port already Exsits...merging data: " + element_dict['portid'])
+                                        for element in service_attribs_to_read:
+                                            if len(element_dict[element]) > 0: self.nmap_dict[addr]['ports'][pos][
+                                                element] = element_dict[element]
+                            if port_was_merged == False:
+                                logger.verbose("NMAP XML PARSE: Append: " + element_dict['portid'])
+                                port_dict.append(element_dict)
                         if self.nmap_dict[addr].get('ports', None) is None:
                             logger.verbose("NMAP XML PARSE: NEW MAP")
                             self.nmap_dict[addr]['ports'] = port_dict
@@ -293,6 +303,12 @@ class Vanquish:
                             logger.verbose("NMAP XML PARSE: MAP MERGE")
                             self.nmap_dict[addr]['ports'] = self.nmap_dict[addr]['ports'] + port_dict
             logger.verbose("NMAP XML PARSE: - Finished NMAP Dict Creation:\n " + str(self.nmap_dict))
+
+    @staticmethod
+    def merge_two_dicts( x, y):
+        z = x.copy()
+        z.update(y)
+        return z
 
     # find exploits from exploit db and copy them to service folder
     # TODO: Copy results to service folders - update nmap_dict with other web app etc products and versions...
@@ -322,8 +338,9 @@ class Vanquish:
             for service in self.nmap_dict[host]['ports']:
                 logger.debug("\tenumerate() - port_number: " + str(service))
                 for known_service, ports in self.config.items('Service Ports'):
-                    if service['name'].find(known_service) <> -1 or service['portid'] in ports.split(','):
-                        if (self.plan.has_option(phase_name,known_service)):
+                    if not ('closed' in service['state'] or 'filtered' in service['state']) \
+                      and ( service['name'].find(known_service) <> -1 or service['portid'] in ports.split(',')):
+                        if self.plan.has_option(phase_name,known_service):
                             for command in self.plan.get(phase_name,known_service).split(','):
                                 if command is not '':
                                     command_keys = {
