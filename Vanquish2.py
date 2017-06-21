@@ -426,6 +426,7 @@ class Vanquish:
         self.thread_pool_commands.append(command)
         process = Popen(command, shell=True, stdin=PIPE, stderr=self.command_error_log, stdout=self.devnull)
         process.stdin.close()
+        #FIXME: Process wait is causing the application to hang in some fringe cases - need to find a better way
         if process.wait() != 0:
             logger.debug("execute_enumeration() - ERRORS EXECUTING:  - " + command)
             self.thread_pool_errors.append(command)
