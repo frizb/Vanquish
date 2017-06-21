@@ -497,7 +497,7 @@ class Vanquish:
         print '   \ \/ / /\ \ | . ` | |  | | |  | | | |  \___ \|  __  |'
         print '    \  / ____ \| |\  | |__| | |__| |_| |_ ____) | |  | |'
         print '     \/_/    \_\_| \_|\___\_\\\\____/|_____|_____/|_|  |_|'
-        print ' The faster you hack ... the more you can hack'
+        print ' Set your Mertilizers on "deep fat fry"'
 
     @staticmethod
     def banner_block():
@@ -515,6 +515,9 @@ class Vanquish:
     def main(self):
         start_time = time.time()
         #sys.stderr = open("errorlog.txt", 'w')
+        print("Press CTRL + C to exit an enumeration phase and skip to the next phase (helpful if a command is taking too long)")
+        print("Vanquish will skip running a command again if it sees that the output files already exist.")
+        print("If you want to re-execute a command, delete the output files (.txt,.xml,.nmap etc.) and run Vanquish again.")
         print("Configuration file: " + str(self.args.configFile))
         print("Attack plan file:   " + str(self.args.attackPlanFile))
         print("Output Path:        " + str(self.args.outputFolder))
@@ -552,7 +555,7 @@ class Vanquish:
 
         print "[+] Starting background Nmap Scan..."
 
-        # TODO background thread with long term comprehensive scan - restart enumeration it has finished -
+        # TODO background thread with long term comprehensive scan - restart enumeration when it has finished -
         # Start background Nmap port scans ... these will take time and will run concurrently with enumeration
         #for scan_command in self.plan.get("Scans Start", "Order").split(","):
         #    self.upfront_scan_hosts(self.hosts, scan_command)
@@ -561,11 +564,12 @@ class Vanquish:
         #thread.start()                                  # Start the execution
         # ensure resume is turned on
 
+        self.parse_nmap_xml()
         self.write_report_file(self.nmap_dict)
+
         # Begin Enumeration Phases
         print "[+] Starting enumeration..."
         for phase in self.plan.get("Enumeration Plan","Order").split(","):
-            self.parse_nmap_xml()
             print "[+] Starting Phase: " + phase
             try:
                 if self.args.phase == phase or self.args.phase == '': self.enumerate(phase)
@@ -584,6 +588,8 @@ class Vanquish:
                     print "[X] Phase completed but encountered the following errors: \n" \
                           + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
                 continue
+
+        #TODO: Post processing - Scan result folders and create lists of usernames, directories, files, passwords from results
 
         try:
             self.write_report_file(self.nmap_dict)
