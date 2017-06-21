@@ -426,9 +426,9 @@ class Vanquish:
         self.thread_pool_commands.append(command)
         process = Popen(command, shell=True, stdin=PIPE, stderr=self.command_error_log, stdout=self.devnull)
         process.stdin.close()
-        #if process.wait() != 0:
-            #logger.debug("execute_enumeration() - ERRORS EXECUTING:  - " + command)
-            #self.thread_pool_errors.append(command)
+        if process.wait() != 0:
+            logger.debug("execute_enumeration() - ERRORS EXECUTING:  - " + command)
+            self.thread_pool_errors.append(command)
         logger.debug("execute_enumeration() - COMPLETED! - " + command)
         self.thread_pool_commands.remove(command)
 
