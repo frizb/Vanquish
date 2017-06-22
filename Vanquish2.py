@@ -198,6 +198,7 @@ class Vanquish:
                             help='Thread Pool Size (default: %(default)s)')
         self.parser.add_argument("-phase", metavar='phase', type=str, default='', help='only execute a specific phase')
         self.parser.add_argument("-noExploitSearch", action='store_true', help='disable searchspolit exploit searching')
+        self.parser.add_argument("-benchmarking", action='store_true', help='enable bench mark reporting on the execution time of commands(exports to benchmark.csv)')
         self.parser.add_argument("-logging", action='store_true', help='enable verbose and debug data logging to files')
         self.parser.add_argument("-verbose", action='store_true', help='display verbose details during the scan')
         self.parser.add_argument("-debug", action='store_true', help='display debug details during the scan')
@@ -234,6 +235,9 @@ class Vanquish:
             logger.DEBUG_FILE= self.debug_log
             logger.VERBOSE_FILE= self.verbose_log
 
+        if self.args.benchmarking:
+            self.benchmarking_csv = open("benchmark.csv", 'w')
+            self.benchmarking_csv.write("COMMAND,TIME")
         sys.stderr = self.command_error_log
         self.devnull = open(os.devnull, 'w')
 
@@ -423,6 +427,7 @@ class Vanquish:
 
     def execute_command(self, command):
         logger.debug("execute_enumeration() - " + command)
+        command_start_time = time()
         self.thread_pool_commands.append(command)
         process = Popen(command, shell=True, stdin=PIPE, stderr=self.command_error_log, stdout=self.devnull)
         process.stdin.close()
@@ -432,6 +437,8 @@ class Vanquish:
             self.thread_pool_errors.append(command)
         logger.debug("execute_enumeration() - COMPLETED! - " + command)
         self.thread_pool_commands.remove(command)
+        if self.args.benchmarking:
+            self.benchmarking_csv.write(command.replace(","," ")+","+time.strftime('%H:%M:%S', time.gmtime(time.time() - command_start_time)))
 
     def get_enumeration_path(self, host, service, port, command):
         ip_path = os.path.join(self.args.outputFolder, host.strip().replace(".","_"))
@@ -534,6 +541,28 @@ class Vanquish:
         self.hosts = self.hosts.readlines()
         logger.verbose("Hosts:"+str(self.hosts))
 
+        #TODO: Post processing - Scan result folders and create lists of usernames, directories, files, passwords from results
+        print "[+] Post Processing and List Building..."
+        # Userlist
+        userlist = []
+        files_to_process = [os.path.join(dp, f) for dp, dn, fn in os.walk(os.path.expanduser(self.args.outputFolder)) for f in fn]
+        for file in files_to_process:
+            base, filename = os.path.split(file)
+            file_segments = filename.split("_")
+            file_segments.pop()
+            config_command_name = " ".join(file_segments)
+            if self.config.has_section(config_command_name):
+                if self.config.has_option(config_command_name,'Userlist'):
+                    regex = re.compile(self.config.get(config_command_name,'Userlist'))
+                    with open(file) as f:
+                        for line in f:
+                            match = regex.match(line)
+                            if match is not None: userlist.append(match.group(1))
+
+                # Passwordlist
+                # Directorylist
+                # Vulnerabilitylist
+
         # Start up front NMAP port scans
         print "[+] Starting upfront Nmap Scan..."
         for scan_command in self.plan.get("Scans Start", "Order").split(","):
@@ -589,8 +618,6 @@ class Vanquish:
                           + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
                 continue
 
-        #TODO: Post processing - Scan result folders and create lists of usernames, directories, files, passwords from results
-
         try:
             self.write_report_file(self.nmap_dict)
             print "[+] Searching for matching exploits..."
@@ -604,6 +631,9 @@ class Vanquish:
         if self.args.logging:
             self.debug_log.close()
             self.verbose_log.close()
+
+        if self.args.benchmarking:
+            self.benchmarking_csv.close()
         return 0
 
 
