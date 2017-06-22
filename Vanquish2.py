@@ -55,10 +55,6 @@ from pprint import pformat
 from pprint import pprint
 from shutil import copyfile
 import json
-import subprocess
-from subprocess import call
-import multiprocessing
-import threading
 import xml.etree.ElementTree as ET
 from multiprocessing.dummy import Pool as ThreadPool
 from subprocess import Popen, PIPE, STDOUT
@@ -427,7 +423,7 @@ class Vanquish:
 
     def execute_command(self, command):
         logger.debug("execute_enumeration() - " + command)
-        command_start_time = time()
+        command_start_time = time.time()
         self.thread_pool_commands.append(command)
         process = Popen(command, shell=True, stdin=PIPE, stderr=self.command_error_log, stdout=self.devnull)
         process.stdin.close()
