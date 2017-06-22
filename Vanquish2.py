@@ -434,7 +434,7 @@ class Vanquish:
         logger.debug("execute_enumeration() - COMPLETED! - " + command)
         self.thread_pool_commands.remove(command)
         if self.args.benchmarking:
-            self.benchmarking_csv.write(command.replace(","," ")+","+time.strftime('%H:%M:%S', time.gmtime(time.time() - command_start_time)))
+            self.benchmarking_csv.write(command.replace(","," ")+","+time.strftime('%H:%M:%S', time.gmtime(time.time() - command_start_time))+"\n")
 
     def get_enumeration_path(self, host, service, port, command):
         ip_path = os.path.join(self.args.outputFolder, host.strip().replace(".","_"))
