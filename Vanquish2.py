@@ -233,7 +233,7 @@ class Vanquish:
 
         if self.args.benchmarking:
             self.benchmarking_csv = open("benchmark.csv", 'w')
-            self.benchmarking_csv.write("COMMAND,TIME")
+            self.benchmarking_csv.write("TIME,COMMAND\n")
         sys.stderr = self.command_error_log
         self.devnull = open(os.devnull, 'w')
 
@@ -415,6 +415,7 @@ class Vanquish:
                         else:
                             logger.debug("\tenumerate() - NO command section found for phase: " + phase_name +
                                          " service name: "+known_service )
+        self.phase_commands=list(set(self.phase_commands)) # Remove Duplicates
         pool = ThreadPool(self.args.threadPool)
         for _ in bar(pool.imap_unordered(self.execute_command, self.phase_commands), expected_size=len(self.phase_commands)):
             pass
@@ -434,7 +435,7 @@ class Vanquish:
         logger.debug("execute_enumeration() - COMPLETED! - " + command)
         self.thread_pool_commands.remove(command)
         if self.args.benchmarking:
-            self.benchmarking_csv.write(command.replace(","," ")+","+time.strftime('%H:%M:%S', time.gmtime(time.time() - command_start_time))+"\n")
+            self.benchmarking_csv.write(time.strftime('%H:%M:%S', time.gmtime(time.time() - command_start_time))+","+command.replace(","," ")+"\n")
 
     def get_enumeration_path(self, host, service, port, command):
         ip_path = os.path.join(self.args.outputFolder, host.strip().replace(".","_"))
