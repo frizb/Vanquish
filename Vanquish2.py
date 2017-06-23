@@ -376,6 +376,9 @@ class Vanquish:
         self.thread_pool_errors = []
         for host in self.nmap_dict:
             logger.debug("enumerate() - Host: " + host)
+            host_ports = [d['portid'] for d in self.nmap_dict[host]['ports'] if 'portid' in d]
+            if self.plan.has_option(phase_name, 'always'):
+                self.nmap_dict[host]['ports'].append({'state':'open','name':'always','portid':'0','product':'Vanquish Added Always Service'})
             for service in self.nmap_dict[host]['ports']:
                 logger.debug("\tenumerate() - port_number: " + str(service))
                 for known_service, ports in self.config.items('Service Ports'):
@@ -390,6 +393,8 @@ class Vanquish:
                                         'domain': self.args.domain,
                                         'service': service['name'],
                                         'port':service['portid'],
+                                        'host ports comma': ",".join(host_ports),
+                                        'host ports space': " ".join(host_ports)
                                     }
                                     base, filename = os.path.split(command_keys['output']) # Resume file already exists
                                     if not self.args.noResume and self.find_files(base,filename+".*").__len__()>0:
