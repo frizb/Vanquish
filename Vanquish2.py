@@ -405,7 +405,7 @@ class Vanquish:
                                                     contains_list = True
                                                     for item in self.config.items(section):
                                                         new_command = command
-                                                        new_command = new_command.replace("<" + section + ">",self.config.get(section, item))
+                                                        new_command = new_command.replace("<" + section + ">",item[1])
                                                         self.phase_commands.append(new_command)
                                                 else:
                                                     for item in self.config.items(section):
