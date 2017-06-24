@@ -40,6 +40,7 @@ __version__ = '0.10'
 __lastupdated__ = 'June 24, 2017'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
+__findings_label_dynamic__ = 'Findings'
 
 ###
 # Imports
@@ -416,13 +417,23 @@ class Vanquish:
                                                        + command_keys['output'])
                                     else:
                                         command = self.prepare_command(command_label, command_keys)
-                                        # TODO: Check for dictionary tags / list tags
-                                        contains_list = False
+                                        # TODO: Check for dictionary tags / list tags / findings lists
+                                        do_not_append = False
+                                        # Findings
+                                        if "<"+__findings_label_dynamic__+" " in command:
+                                            findings_path = os.path.join(self.args.outputFolder,host.replace(".","_"))
+                                            findings_files = self.find_files(findings_path, "*.txt")
+                                            for findings_file in findings_files:
+                                                replacement = "<"+__findings_label_dynamic__+ " " +str(findings_file).replace(".txt","")+">"
+                                                if replacement in command:
+                                                    findings_file_path = os.path.join(findings_path,findings_file)
+                                                    command = command.replace(replacement, findings_file_path)
+                                        # Lists
                                         for section in self.config.sections():
                                             if "List" in section:
                                                 if command.find(
                                                                         "<" + section + ">") <> -1:  # include entire list from section
-                                                    contains_list = True
+                                                    do_not_append = True
                                                     for item in self.config.items(section):
                                                         new_command = command
                                                         new_command = new_command.replace("<" + section + ">", item[1])
@@ -430,7 +441,7 @@ class Vanquish:
                                                 else:
                                                     for item in self.config.items(section):
                                                         command = command.replace("<" + item[0] + ">", item[1])
-                                        if contains_list == False: self.phase_commands.append(command)
+                                        if do_not_append == False: self.phase_commands.append(command)
                                         logger.verbose("enumerate() - command : " + command_label)
                         else:
                             logger.debug("\tenumerate() - NO command section found for phase: " + phase_name +
@@ -601,7 +612,38 @@ class Vanquish:
 
         # Begin Enumeration Phases
         print "[+] Starting enumeration..."
-        for phase in self.plan.get("Enumeration Plan", "Order").split(","):
+        self.enumerate_plan("Enumeration Plan")
+
+        print "[+] Findings Lists Post Processing..."
+        self.findings_post_processing()
+
+        # Begin Post Enumeration Phases
+        print "[+] Starting post enumeration..."
+        self.enumerate_plan("Post Enumeration Plan")
+
+        try:
+            self.write_report_file(self.nmap_dict)
+            print "[+] Searching for matching exploits..."
+            self.exploit_search("SearchSploit JSON")
+        except:
+            bar(self.phase_commands, expected_size=len(self.phase_commands))
+
+
+
+
+        print "[+] Elapsed Time: " + time.strftime('%H:%M:%S', time.gmtime(time.time() - start_time))
+        logger.verbose("Goodbye!")
+        self.command_error_log.close()
+        if self.args.logging:
+            self.debug_log.close()
+            self.verbose_log.close()
+
+        if self.args.benchmarking:
+            self.benchmarking_csv.close()
+        return 0
+
+    def enumerate_plan(self, plan):
+        for phase in self.plan.get(plan, "Order").split(","):
             print "[+] Starting Phase: " + phase
             try:
                 if self.args.phase == phase or self.args.phase == '': self.enumerate(phase)
@@ -620,28 +662,6 @@ class Vanquish:
                     print "[X] Phase completed but encountered the following errors: \n" \
                           + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
                 continue
-
-
-        print "[+] Findings Lists Post Processing..."
-        self.findings_post_processing()
-
-        try:
-            self.write_report_file(self.nmap_dict)
-            print "[+] Searching for matching exploits..."
-            self.exploit_search("SearchSploit JSON")
-        except:
-            bar(self.phase_commands, expected_size=len(self.phase_commands))
-
-        print "[+] Elapsed Time: " + time.strftime('%H:%M:%S', time.gmtime(time.time() - start_time))
-        logger.verbose("Goodbye!")
-        self.command_error_log.close()
-        if self.args.logging:
-            self.debug_log.close()
-            self.verbose_log.close()
-
-        if self.args.benchmarking:
-            self.benchmarking_csv.close()
-        return 0
 
     def findings_post_processing(self):
         for current_host in self.hosts:
