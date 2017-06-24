@@ -566,36 +566,6 @@ class Vanquish:
         self.hosts = self.hosts.readlines()
         logger.verbose("Hosts:" + str(self.hosts))
 
-        # TODO: Post processing - Scan result folders and create lists of usernames, directories, files, passwords from results
-        print "[+] Findings Lists Post Processing..."
-        for current_host in self.hosts:
-            host_path = os.path.join(self.args.outputFolder,str(current_host).strip().replace(".","_"))
-            files_to_process = [os.path.join(dp, f) for dp, dn, fn in os.walk(os.path.expanduser(host_path))
-                                for f in fn]
-            for file in files_to_process:
-                base, filename = os.path.split(file)
-                if base.endswith(__nmap_folder__): continue
-                file_segments = filename.split("_")
-                file_segments.pop()
-                config_command_name = " ".join(file_segments)
-                if self.config.has_section(config_command_name):
-                    for item in self.config.items(config_command_name):
-                        if __findings_label__ in item[0]:
-                            list_type = str(item[0]).split(" ")[1]
-                            if self.findings[list_type] is None: self.findings[list_type] = []
-                            regex = re.compile(item[1])
-                            with open(file) as f:
-                                for line in f:
-                                    match = regex.match(line)
-                                    if match is not None:
-                                        self.findings[list_type].append(match.group(1))
-            # Remove duplicates and output results to findings files
-            for findings_list in self.findings:
-                self.findings[findings_list] = self.remove_duplicates(self.findings[findings_list])
-                if len(self.findings[findings_list]) > 0:
-                    with open(os.path.join(host_path,findings_list+".txt"),'w') as findings_file:
-                        findings_file.write("\n".join(self.findings[findings_list]))
-
         # Start up front NMAP port scans
         print "[+] Starting upfront Nmap Scan..."
         for scan_command in self.plan.get("Scans Start", "Order").split(","):
@@ -651,6 +621,10 @@ class Vanquish:
                           + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
                 continue
 
+
+        print "[+] Findings Lists Post Processing..."
+        self.findings_post_processing()
+
         try:
             self.write_report_file(self.nmap_dict)
             print "[+] Searching for matching exploits..."
@@ -668,6 +642,35 @@ class Vanquish:
         if self.args.benchmarking:
             self.benchmarking_csv.close()
         return 0
+
+    def findings_post_processing(self):
+        for current_host in self.hosts:
+            host_path = os.path.join(self.args.outputFolder, str(current_host).strip().replace(".", "_"))
+            files_to_process = [os.path.join(dp, f) for dp, dn, fn in os.walk(os.path.expanduser(host_path))
+                                for f in fn]
+            for file in files_to_process:
+                base, filename = os.path.split(file)
+                if base.endswith(__nmap_folder__): continue
+                file_segments = filename.split("_")
+                file_segments.pop()
+                config_command_name = " ".join(file_segments)
+                if self.config.has_section(config_command_name):
+                    for item in self.config.items(config_command_name):
+                        if __findings_label__ in item[0]:
+                            list_type = str(item[0]).split(" ")[1]
+                            if self.findings[list_type] is None: self.findings[list_type] = []
+                            regex = re.compile(item[1])
+                            with open(file) as f:
+                                for line in f:
+                                    match = regex.match(line)
+                                    if match is not None:
+                                        self.findings[list_type].append(match.group(1))
+            # Remove duplicates and output results to findings files
+            for findings_list in self.findings:
+                self.findings[findings_list] = self.remove_duplicates(self.findings[findings_list])
+                if len(self.findings[findings_list]) > 0:
+                    with open(os.path.join(host_path, findings_list + ".txt"), 'w') as findings_file:
+                        findings_file.write("\n".join(self.findings[findings_list]))
 
 
 def main(argv=None):
