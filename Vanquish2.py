@@ -475,6 +475,35 @@ class Vanquish:
                 time.strftime('%H:%M:%S', time.gmtime(time.time() - command_start_time)) + "," + command.replace(",",
                                                                                                                  " ") + "\n")
 
+    def findings_post_processing(self):
+        for current_host in self.hosts:
+            host_path = os.path.join(self.args.outputFolder, str(current_host).strip().replace(".", "_"))
+            files_to_process = [os.path.join(dp, f) for dp, dn, fn in os.walk(os.path.expanduser(host_path))
+                                for f in fn]
+            for file in files_to_process:
+                base, filename = os.path.split(file)
+                if base.endswith(__nmap_folder__): continue
+                file_segments = filename.split("_")
+                file_segments.pop()
+                config_command_name = " ".join(file_segments)
+                if self.config.has_section(config_command_name):
+                    for item in self.config.items(config_command_name):
+                        if __findings_label__ in item[0]:
+                            list_type = str(item[0]).split(" ")[1]
+                            if self.findings.get(list_type) is None: self.findings[list_type] = []
+                            regex = re.compile(item[1])
+                            with open(file) as f:
+                                for line in f:
+                                    match = regex.match(line)
+                                    if match is not None:
+                                        self.findings[list_type].append(match.group(1))
+            # Remove duplicates and output results to findings files
+            for findings_list in self.findings:
+                self.findings[findings_list] = self.remove_duplicates(self.findings[findings_list])
+                if len(self.findings[findings_list]) > 0:
+                    with open(os.path.join(host_path, findings_list + ".txt"), 'w') as findings_file:
+                        findings_file.write("\n".join(self.findings[findings_list]))
+
     def get_enumeration_path(self, host, service, port, command):
         ip_path = os.path.join(self.args.outputFolder, host.strip().replace(".", "_"))
         if not os.path.exists(ip_path): os.makedirs(ip_path)
@@ -662,36 +691,6 @@ class Vanquish:
                     print "[X] Phase completed but encountered the following errors: \n" \
                           + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
                 continue
-
-    def findings_post_processing(self):
-        for current_host in self.hosts:
-            host_path = os.path.join(self.args.outputFolder, str(current_host).strip().replace(".", "_"))
-            files_to_process = [os.path.join(dp, f) for dp, dn, fn in os.walk(os.path.expanduser(host_path))
-                                for f in fn]
-            for file in files_to_process:
-                base, filename = os.path.split(file)
-                if base.endswith(__nmap_folder__): continue
-                file_segments = filename.split("_")
-                file_segments.pop()
-                config_command_name = " ".join(file_segments)
-                if self.config.has_section(config_command_name):
-                    for item in self.config.items(config_command_name):
-                        if __findings_label__ in item[0]:
-                            list_type = str(item[0]).split(" ")[1]
-                            if self.findings[list_type] is None: self.findings[list_type] = []
-                            regex = re.compile(item[1])
-                            with open(file) as f:
-                                for line in f:
-                                    match = regex.match(line)
-                                    if match is not None:
-                                        self.findings[list_type].append(match.group(1))
-            # Remove duplicates and output results to findings files
-            for findings_list in self.findings:
-                self.findings[findings_list] = self.remove_duplicates(self.findings[findings_list])
-                if len(self.findings[findings_list]) > 0:
-                    with open(os.path.join(host_path, findings_list + ".txt"), 'w') as findings_file:
-                        findings_file.write("\n".join(self.findings[findings_list]))
-
 
 def main(argv=None):
     vanquish = Vanquish(argv if argv else sys.argv[1:])
