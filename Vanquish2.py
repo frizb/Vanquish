@@ -36,8 +36,8 @@ Main application logic and automation functions
 """
 from parser import ParserError
 
-__version__ = '0.10'
-__lastupdated__ = 'June 24, 2017'
+__version__ = '0.11'
+__lastupdated__ = 'June 30, 2017'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
 __findings_label_dynamic__ = 'Findings'
@@ -182,8 +182,8 @@ class Vanquish:
         print("  Use the -h parameter for help.")
         self.parser = argparse.ArgumentParser(
             description='Root2Boot automation platform designed to systematically enumernate and exploit using the law of diminishing returns.')
-        self.parser.add_argument("-outputFolder", metavar='folder', type=str, default="." + os.path.sep + "output",
-                                 help='output folder path (default: %(default)s)')
+        self.parser.add_argument("-outputFolder", metavar='folder', type=str, default="",
+                                 help='output folder path (default: name of the host file))')
         self.parser.add_argument("-configFile", metavar='file', type=str, default="config.ini",
                                  help='configuration ini file (default: %(default)s)')
         self.parser.add_argument("-attackPlanFile", metavar='file', type=str, default="attackplan.ini",
@@ -214,6 +214,10 @@ class Vanquish:
 
         logger.VERBOSE = (self.config.getboolean("System", "Verbose") or self.args.verbose)
         logger.DEBUG = (self.config.getboolean("System", "Debug") or self.args.debug)
+
+        # Default output location
+        if self.args.outputFolder == "":
+            self.args.outputFolder = "." + os.path.sep + str(self.args.hostFile.name).split(".")[0]
 
         # load attack plan
         self.plan = ConfigParser.ConfigParser()
@@ -428,6 +432,9 @@ class Vanquish:
                                                 if replacement in command:
                                                     findings_file_path = os.path.join(findings_path,findings_file)
                                                     command = command.replace(replacement, findings_file_path)
+                                        # Still have a findings tag in the command?  do not add it to the list -
+                                        if "<" + __findings_label_dynamic__ + " " in command:
+                                            do_not_append = True
                                         # Lists
                                         for section in self.config.sections():
                                             if "List" in section:
@@ -480,6 +487,7 @@ class Vanquish:
             host_path = os.path.join(self.args.outputFolder, str(current_host).strip().replace(".", "_"))
             files_to_process = [os.path.join(dp, f) for dp, dn, fn in os.walk(os.path.expanduser(host_path))
                                 for f in fn]
+            self.findings = {'users': [], 'urls': [], 'groups': [], 'passwords': [], 'vulnerabilities': []}
             for file in files_to_process:
                 base, filename = os.path.split(file)
                 if base.endswith(__nmap_folder__): continue
@@ -490,16 +498,25 @@ class Vanquish:
                     for item in self.config.items(config_command_name):
                         if __findings_label__ in item[0]:
                             list_type = str(item[0]).split(" ")[1]
+                            list_type = ''.join([i for i in list_type if not i.isdigit()]) # remove digits in item name
                             if self.findings.get(list_type) is None: self.findings[list_type] = []
                             regex = re.compile(item[1])
+                            # First try line by line
+                            wholefile = ""
                             with open(file) as f:
                                 for line in f:
+                                    wholefile += line
                                     match = regex.match(line)
                                     if match is not None:
                                         self.findings[list_type].append(match.group(1))
+                            # Next try multiline search mode
+                            matches = re.search(item[1], wholefile, re.MULTILINE)
+                            if matches and matches.group(1) is not None:
+                                self.findings[list_type].append(matches.group(1))
             # Remove duplicates and output results to findings files
             for findings_list in self.findings:
                 self.findings[findings_list] = self.remove_duplicates(self.findings[findings_list])
+                self.findings[findings_list].sort()
                 if len(self.findings[findings_list]) > 0:
                     with open(os.path.join(host_path, findings_list + ".txt"), 'w') as findings_file:
                         findings_file.write("\n".join(self.findings[findings_list]))
