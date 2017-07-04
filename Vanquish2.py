@@ -11,7 +11,10 @@
 # TODO: Finish exploitation dynamic replacements from user credentials list
 # TODO: More to be done with HTTP enumeration and service identification / exploit searches
 # TODO: Move HTTP_NMAP_WEB_SCAN
-# Starts Fast moves to Through
+# TODO: Set timeout for CURL robots collector
+# TODO: Optimize nikto parameters to speed up this request  v# Starts Fast moves to Through
+# TODO: Implements findigns announce feature
+# TODO: Rank hosts from easiest to most difficult to hack
 # 1. NMAP Scan
 # 2. Service Enumeration Scan
 # 3. Finds relavant exploits and copies to a subfolder
@@ -63,6 +66,7 @@ import json
 import xml.etree.ElementTree as ET
 from multiprocessing.dummy import Pool as ThreadPool
 from subprocess import Popen, PIPE, STDOUT
+from datetime import datetime
 
 # PROGRESS BAR - Thank you! clint.textui.progress
 BAR_TEMPLATE = '%s[%s%s] %i/%i - %s\r'
@@ -480,6 +484,7 @@ class Vanquish:
         logger.debug("execute_command() - Starting: - " + command)
         command_start_time = time.time()
         with open(self.active_commands, 'w') as active_command_report_file:
+            active_command_report_file.write("Last Update: " + str(datetime.now()) + "\n")
             active_command_report_file.write(pformat(self.thread_pool_commands, indent=4, width=1))
         self.thread_pool_commands.append(command)
         process = Popen(command, shell=True, stdin=PIPE, stderr=self.command_error_log, stdout=self.devnull)
@@ -492,6 +497,7 @@ class Vanquish:
         self.thread_pool_commands.remove(command)
         if self.args.benchmarking:
             with open(self.active_commands, 'w') as active_command_report_file:
+                active_command_report_file.write("Last Update: "+ str(datetime.now())+"\n")
                 active_command_report_file.write(pformat(self.thread_pool_commands, indent=4, width=1))
             self.benchmarking_csv.write(
                 time.strftime('%H:%M:%S', time.gmtime(time.time() - command_start_time)) + "," + command.replace(",",
