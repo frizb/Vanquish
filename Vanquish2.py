@@ -41,10 +41,14 @@ Main application logic and automation functions
 """
 from parser import ParserError
 
-__version__ = '0.11'
-__lastupdated__ = 'June 30, 2017'
+__version__ = '0.12'
+__lastupdated__ = 'July 8, 2017'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
+__accounce_label__ = 'announce'
+__password_list_label__ = 'passwordlist'
+__urlshttp_list_label__ = 'urlshttp'
+__urlshttps_list_label__ = 'urlshttps'
 __findings_label_dynamic__ = 'Findings'
 __findings_label_list_dynamic__ = 'FindingsList'
 
@@ -59,6 +63,7 @@ import re
 import ConfigParser
 import argparse
 import random
+import operator
 from pprint import pformat
 from pprint import pprint
 from shutil import copyfile
@@ -161,7 +166,7 @@ def bar(it, label='', width=32, hide=None, empty_char=BAR_EMPTY_CHAR,
             bar.show(i + 1)
 
 
-class logger:
+class Logger:
     DEBUG = False
     VERBOSE = False
     DEBUG_FILE = None
@@ -169,24 +174,81 @@ class logger:
 
     @staticmethod
     def debug(msg):
-        if logger.DEBUG_FILE is not None:
-            logger.DEBUG_FILE.write(msg + '\n')
-        elif logger.DEBUG == True:
+        if Logger.DEBUG_FILE is not None:
+            Logger.DEBUG_FILE.write(msg + '\n')
+        elif Logger.DEBUG == True:
             print("[!] " + msg)
 
     @staticmethod
     def verbose(msg):
-        if logger.VERBOSE_FILE is not None:
-            logger.VERBOSE_FILE.write(msg + '\n')
-        elif logger.VERBOSE == True:
+        if Logger.VERBOSE_FILE is not None:
+            Logger.VERBOSE_FILE.write(msg + '\n')
+        elif Logger.VERBOSE == True:
             print("[*] " + msg)
 
+
+class Color:
+
+    ENABLE_COLOR = True
+
+    @staticmethod
+    def redback():
+        if Color.ENABLE_COLOR:
+            return "\033[0m\033[37m\033[41m"
+
+    @staticmethod
+    def black():
+        if Color.ENABLE_COLOR:
+            return '\033[0;30m'
+
+    @staticmethod
+    def red():
+        if Color.ENABLE_COLOR:
+            return '\033[0;31m'
+
+    @staticmethod
+    def green():
+        if Color.ENABLE_COLOR:
+            return '\033[0;32m'
+
+    @staticmethod
+    def yellow():
+        if Color.ENABLE_COLOR:
+            return '\033[0;33m'
+
+    @staticmethod
+    def blue():
+        if Color.ENABLE_COLOR:
+            return '\033[0;34m'
+
+    @staticmethod
+    def magenta():
+        if Color.ENABLE_COLOR:
+            return '\033[0;35m'
+
+    @staticmethod
+    def cyan():
+        if Color.ENABLE_COLOR:
+            return '\033[0;36m'
+
+    @staticmethod
+    def grey():
+        if Color.ENABLE_COLOR:
+            return '\033[0;37m'
+
+    @staticmethod
+    def white():
+        if Color.ENABLE_COLOR:
+            return '\033[0;38m'
+
+    @staticmethod
+    def reset():
+        if Color.ENABLE_COLOR:
+            return '\033[0;39m'
 
 class Vanquish:
     def __init__(self, argv):
         self.banner()
-        print("Vanquish Version: " + __version__ + " Updated: " + __lastupdated__)
-        print("  Use the -h parameter for help.")
         self.parser = argparse.ArgumentParser(
             description='Root2Boot automation platform designed to systematically enumernate and exploit using the law of diminishing returns.')
         self.parser.add_argument("-outputFolder", metavar='folder', type=str, default="",
@@ -219,8 +281,8 @@ class Vanquish:
         self.config = ConfigParser.ConfigParser()
         self.config.read(self.args.configFile)
 
-        logger.VERBOSE = (self.config.getboolean("System", "Verbose") or self.args.verbose)
-        logger.DEBUG = (self.config.getboolean("System", "Debug") or self.args.debug)
+        Logger.VERBOSE = (self.config.getboolean("System", "Verbose") or self.args.verbose)
+        Logger.DEBUG = (self.config.getboolean("System", "Debug") or self.args.debug)
 
         # Default output location
         if self.args.outputFolder == "":
@@ -236,6 +298,10 @@ class Vanquish:
         # current enumeration phase command que
         self.phase_commands = []
 
+        # announced vulnerabilities - Prevent findings from being reported multiple times
+        self.announced = {}
+        self.risk_score = {}
+
         # Current Thread Pool command contents
         self.thread_pool_commands = []
         self.thread_pool_errors = []
@@ -249,8 +315,8 @@ class Vanquish:
         if self.args.logging:
             self.debug_log = open("debuglog.txt", 'w')
             self.verbose_log = open("verboselog.txt", 'w')
-            logger.DEBUG_FILE = self.debug_log
-            logger.VERBOSE_FILE = self.verbose_log
+            Logger.DEBUG_FILE = self.debug_log
+            Logger.VERBOSE_FILE = self.verbose_log
 
         if self.args.benchmarking:
             self.benchmarking_csv = open("benchmark.csv", 'w')
@@ -261,7 +327,7 @@ class Vanquish:
     # Scan the hosts using Nmap
     # Create a thread pool and run multiple nmap sessions in parallel
     def upfront_scan_hosts(self, hosts, command_label):
-        logger.debug("scan_hosts() - command label : " + command_label)
+        Logger.debug("scan_hosts() - command label : " + command_label)
         pool = ThreadPool(self.args.threadPool)
         self.phase_commands = []
         nmap_path = os.path.join(self.args.outputFolder, __nmap_folder__)
@@ -276,11 +342,11 @@ class Vanquish:
             command = self.prepare_command(command_label, command_keys)
             base, filename = os.path.split(command_keys['output'])  # Resume file already exists
             if not self.args.noResume and self.find_files(base, filename + ".*").__len__() > 0:
-                logger.debug("scan_hosts() - RESUME - output file already exists: "
-                               + command_keys['output'])
+                Logger.debug("scan_hosts() - RESUME - output file already exists: "
+                             + command_keys['output'])
             else:
                 self.phase_commands.append(command)
-                logger.verbose("root@kali:/# " + command)
+                Logger.verbose("root@kali:/# " + command)
 
         # results = pool.map(self.execute_scan, self.phase_commands)
         for _ in bar(pool.imap_unordered(self.execute_command, self.phase_commands),
@@ -293,7 +359,7 @@ class Vanquish:
     def parse_nmap_xml(self):
         print "[+] Reading Nmap XML Output Files..."
         port_attribs_to_read = ['protocol', 'portid']
-        service_attribs_to_read = ['name', 'product', 'version', 'extrainfo', 'method']
+        service_attribs_to_read = ['name', 'product', 'version', 'extrainfo', 'method', 'tunnel']
         state_attribs_to_read = ['state', 'reason']
         xml_nmap_elements = {'service': service_attribs_to_read, 'state': state_attribs_to_read}
         search_address = {'path': 'address', 'el': 'addr'}
@@ -302,11 +368,11 @@ class Vanquish:
         for nmap_file in os.listdir(nmap_output_path):
             if nmap_file.endswith(".xml"):
                 nmap_file_path = os.path.join(nmap_output_path, nmap_file)
-                logger.debug("XML PARSE: " + nmap_file_path)
+                Logger.debug("XML PARSE: " + nmap_file_path)
                 try:
                     tree = ET.parse(nmap_file_path)
                 except:
-                    logger.debug("XML PARSE: Error Parsing : " + nmap_file_path)
+                    Logger.debug("XML PARSE: Error Parsing : " + nmap_file_path)
                     continue
                 root = tree.getroot()
                 for i in root.iter('host'):
@@ -327,6 +393,8 @@ class Vanquish:
                                         element_dict = self.merge_two_dicts(element_dict, attribute_dict)
                                         if attribute.get('hostname', '') is not '':
                                             self.nmap_dict[addr]['hostname'] = attribute.get('hostname', '')
+                                        if attribute.get('tunnel', '') == 'ssl' and attribute.get('name', '') == 'http':
+                                            element_dict['name'] = 'https'
                             # Check to see if this port already exists
                             port_was_merged = False
                             if self.nmap_dict[addr].get('ports', None) is not None:
@@ -342,7 +410,7 @@ class Vanquish:
                             self.nmap_dict[addr]['ports'] = port_dict
                         else:
                             self.nmap_dict[addr]['ports'] = self.nmap_dict[addr]['ports'] + port_dict
-            logger.debug("NMAP XML PARSE: - Finished NMAP Dict Creation:\n " + str(self.nmap_dict))
+            Logger.debug("NMAP XML PARSE: - Finished NMAP Dict Creation:\n " + str(self.nmap_dict))
 
     @staticmethod
     def merge_two_dicts(x, y):
@@ -354,7 +422,7 @@ class Vanquish:
     # TODO: Copy results to service folders - update nmap_dict with other web app etc products and versions...
     def exploit_search(self, command_label):
         if self.args.noExploitSearch: return False
-        logger.debug("exploit_search()")
+        Logger.debug("exploit_search()")
         for host in self.nmap_dict:
             for service in self.nmap_dict[host]['ports']:
                 if service.get('product', '') is not '' and service.get('version', '') is not '':
@@ -364,8 +432,8 @@ class Vanquish:
                         'target': service.get('product', '')}
                     base, filename = os.path.split(command_keys['output'])  # Resume file already exists
                     if not self.args.noResume and self.find_files(base, filename + ".*").__len__() > 0:
-                        logger.debug("exploit_search() -Exploit Search file already exists: "
-                                       + command_keys['output'])
+                        Logger.debug("exploit_search() -Exploit Search file already exists: "
+                                     + command_keys['output'])
                     else:
                         self.execute_command(self.prepare_command(command_label, command_keys))
                         with open(command_keys['output'] + ".json") as data_file:
@@ -388,17 +456,17 @@ class Vanquish:
     # then it will create a progress bar and execute a specified number of threads at the same time
     # until all the threads are finished then the results are parsed by another function
     def enumerate(self, phase_name):
-        logger.debug("Enumerate - " + phase_name)
+        Logger.debug("Enumerate - " + phase_name)
         self.phase_commands = []
         self.thread_pool_errors = []
         for host in self.nmap_dict:
-            logger.debug("enumerate() - Host: " + host)
+            Logger.debug("enumerate() - Host: " + host)
             host_ports = [d['portid'] for d in self.nmap_dict[host]['ports'] if 'portid' in d]
             if self.plan.has_option(phase_name, 'always'):
                 self.nmap_dict[host]['ports'].append(
                     {'state': 'open', 'name': 'always', 'portid': '0', 'product': 'Vanquish Added Always Service'})
             for service in self.nmap_dict[host]['ports']:
-                logger.debug("\tenumerate() - port_number: " + str(service))
+                Logger.debug("\tenumerate() - port_number: " + str(service))
                 for known_service, ports in self.config.items('Service Ports'):
                     if not ('closed' in service['state'] or 'filtered' in service['state']) \
                             and (service['name'].find(known_service) <> -1 or service['portid'] in ports.split(',')):
@@ -417,8 +485,8 @@ class Vanquish:
                                     }
                                     base, filename = os.path.split(command_keys['output'])  # Resume file already exists
                                     if not self.args.noResume and self.find_files(base, filename + ".*").__len__() > 0:
-                                        logger.debug("enumerate() - RESUME - output file already exists: "
-                                                       + command_keys['output'])
+                                        Logger.debug("enumerate() - RESUME - output file already exists: "
+                                                     + command_keys['output'])
                                     else:
                                         command = self.prepare_command(command_label, command_keys)
                                         # TODO: Check for dictionary tags / list tags / findings lists
@@ -463,9 +531,9 @@ class Vanquish:
                                                     for item in self.config.items(section):
                                                         command = command.replace("<" + item[0] + ">", item[1])
                                         if do_not_append == False: self.phase_commands.append(command)
-                                        logger.debug("enumerate() - command : " + command_label)
+                                        Logger.debug("enumerate() - command : " + command_label)
                         else:
-                            logger.debug("\tenumerate() - NO command section found for phase: " + phase_name +
+                            Logger.debug("\tenumerate() - NO command section found for phase: " + phase_name +
                                          " service name: " + known_service)
         self.phase_commands = self.remove_duplicates(self.phase_commands)
         pool = ThreadPool(self.args.threadPool)
@@ -480,8 +548,8 @@ class Vanquish:
         return list(set(list_with_duplicates))
 
     def execute_command(self, command):
-        logger.verbose("root@kali:/# " + command)
-        logger.debug("execute_command() - Starting: - " + command)
+        Logger.verbose("root@kali:/# " + command)
+        Logger.debug("execute_command() - Starting: - " + command)
         command_start_time = time.time()
         with open(self.active_commands, 'w') as active_command_report_file:
             active_command_report_file.write("Last Update: " + str(datetime.now()) + "\n")
@@ -491,9 +559,9 @@ class Vanquish:
         process.stdin.close()
         # FIXME: Process wait is causing the application to hang in some fringe cases - need to find a better way
         if process.wait() != 0:
-            logger.debug("execute_command() - ERRORS EXECUTING:  - " + command)
+            Logger.debug("execute_command() - ERRORS EXECUTING:  - " + command)
             self.thread_pool_errors.append(command)
-        logger.debug("execute_command() - COMPLETED! - " + command)
+        Logger.debug("execute_command() - COMPLETED! - " + command)
         self.thread_pool_commands.remove(command)
         if self.args.benchmarking:
             with open(self.active_commands, 'w') as active_command_report_file:
@@ -502,6 +570,31 @@ class Vanquish:
             self.benchmarking_csv.write(
                 time.strftime('%H:%M:%S', time.gmtime(time.time() - command_start_time)) + "," + command.replace(",",
                                                                                                                  " ") + "\n")
+
+    def enumerate_plan(self, plan):
+        for phase in self.plan.get(plan, "Order").split(","):
+            print Color.green()+"[+]"+Color.reset()+" Starting Phase: " + phase
+            try:
+                if self.args.phase == phase or self.args.phase == '': self.enumerate(phase)
+            except KeyboardInterrupt:
+                Logger.debug("[X] Keyboard Interrupt Detected... exiting phase:: " + phase)
+                Logger.debug("[X] Thread Pool at Interrupt: \n" + pformat(self.thread_pool_commands))
+                print Color.red()+"[X]"+Color.reset()+" Keyboard Interrupt Detected... exiting phase: " + phase
+                print Color.red()+"[X]"+Color.reset()+" Thread Pool at Interrupt:"
+                pprint(self.thread_pool_commands)
+                continue
+            except ValueError as err:
+                bar(self.phase_commands, expected_size=len(self.phase_commands))
+                if len(self.thread_pool_errors) > 0:
+                    Logger.debug("[X] Phase completed but encountered the following errors:  \n"
+                                 + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands))
+                    print Color.red()+"[X]"+Color.reset()+" Phase completed but encountered the following errors: \n" \
+                          + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
+                continue
+
+            print Color.grey()+"[+]"+Color.reset()+" Finding's Post Processing..."
+            self.findings_post_processing()
+
 
     def findings_post_processing(self):
         for current_host in self.hosts:
@@ -530,10 +623,19 @@ class Vanquish:
                                     match = regex.match(line)
                                     if match is not None:
                                         self.findings[list_type].append(match.group(1))
+                                        announcement = str(current_host).strip() + ": " + match.group(1);
+                                        if __accounce_label__ in item[0] and self.announced.get(announcement) != 1:
+                                            self.announced[announcement] = 1
+                                            print Color.redback() + "[!] " + announcement + Color.reset()
+
                             # Next try multiline search mode
                             matches = re.search(item[1], wholefile, re.MULTILINE)
                             if matches and matches.group(1) is not None:
                                 self.findings[list_type].append(matches.group(1))
+                                announcement = str(current_host).strip() + ": " + matches.group(1);
+                                if __accounce_label__ in item[0] and self.announced.get(announcement) != 1:
+                                    self.announced[announcement] = 1
+                                    print Color.redback() + "[!] "+ announcement + Color.reset()
             # Remove duplicates and output results to findings files
             for findings_list in self.findings:
                 self.findings[findings_list] = self.remove_duplicates(self.findings[findings_list])
@@ -541,6 +643,24 @@ class Vanquish:
                 if len(self.findings[findings_list]) > 0:
                     with open(os.path.join(host_path, findings_list + ".txt"), 'w') as findings_file:
                         findings_file.write("\n".join(self.findings[findings_list]))
+            # Calculate Risk Score
+            risk_score = 0
+            for findings_list in self.findings:
+                risk_score += len(self.findings.get(findings_list, [])) * 1
+            if len(self.findings.get(__accounce_label__, [])) > 0:
+                risk_score += 1000
+            risk_score -= len(self.findings.get(__password_list_label__,[]))
+            risk_score -= len(self.findings.get(__urlshttp_list_label__, []))
+            risk_score -= len(self.findings.get(__urlshttps_list_label__, []))
+            if len(self.findings.get(__urlshttp_list_label__, [])) > 20:
+                risk_score += 20
+            else:
+                risk_score += len(self.findings.get(__urlshttp_list_label__, []))
+            if len(self.findings.get(__urlshttps_list_label__, [])) > 20:
+                risk_score += 20
+            else:
+                risk_score += len(self.findings.get(__urlshttps_list_label__, []))
+            self.risk_score[str(current_host).strip()] = risk_score
 
     def get_enumeration_path(self, host, service, port, command):
         ip_path = os.path.join(self.args.outputFolder, host.strip().replace(".", "_"))
@@ -551,9 +671,9 @@ class Vanquish:
 
     def prepare_command(self, command, keyvalues):
         command = self.config.get(command, "command")
-        logger.debug("prepare_command() command: " + command)
+        Logger.debug("prepare_command() command: " + command)
         for k in keyvalues.iterkeys():
-            logger.debug("    prepare_command() key: " + k)
+            Logger.debug("    prepare_command() key: " + k)
             command = command.replace("<" + k + ">", keyvalues[k])
         return command
 
@@ -566,10 +686,18 @@ class Vanquish:
                 dict[element] = value
         return dict
 
-    def write_report_file(self, data):
-        report_path = os.path.join(self.args.outputFolder, self.args.reportFile)
+    def write_report_file(self, data, folder, file):
+        report_path = os.path.join(folder,file)
         f = open(report_path, 'w')
         f.write(pformat(data, indent=4, width=1))
+        f.close()
+
+    def write_csv_report_file(self, data, header, folder, file):
+        report_path = os.path.join(folder,file)
+        f = open(report_path, 'w')
+        f.write(header)
+        for item in data:
+            f.write(str(item[0])+","+str(item[1])+"\n")
         f.close()
 
     def find_files(self, base, pattern):
@@ -588,7 +716,8 @@ class Vanquish:
 
     @staticmethod
     def banner_flame():
-        print '\n                  )             (   (       )  '
+        print Color.red()+'\n' \
+              '                  )             (   (       )  '
         print '         (     ( /(   (         )\ ))\ ) ( /(  '
         print ' (   (   )\    )\())( )\     ( (()/(()/( )\()) '
         print ' )\  )((((_)( ((_)\ )((_)    )\ /(_))(_)|(_)\  '
@@ -596,25 +725,27 @@ class Vanquish:
         print '\ \ / /(_)_\(_) \| |/ _ \| | | |_ _/ __|| || | '
         print ' \ V /  / _ \ | .` | (_) | |_| || |\__ \| __ | '
         print '  \_/  /_/ \_\|_|\_|\__\_\\\\___/|___|___/|_||_| '
-        print ' Built for speed!'
+        print 'Get to shell.'+Color.reset()
 
     @staticmethod
     def banner_doom():
-        print '\n __      __     _   _  ____  _    _ _____  _____ _    _ '
+        print Color.yellow()+'\n ' \
+               '__      __     _   _  ____  _    _ _____  _____ _    _ '
         print ' \ \    / /\   | \ | |/ __ \| |  | |_   _|/ ____| |  | |'
         print '  \ \  / /  \  |  \| | |  | | |  | | | | | (___ | |__| |'
         print '   \ \/ / /\ \ | . ` | |  | | |  | | | |  \___ \|  __  |'
         print '    \  / ____ \| |\  | |__| | |__| |_| |_ ____) | |  | |'
         print '     \/_/    \_\_| \_|\___\_\\\\____/|_____|_____/|_|  |_|'
-        print ' Set your Mertilizers on "deep fat fry"'
+        print 'Set your Mertilizers on "deep fat fry".'+Color.reset()
 
     @staticmethod
     def banner_block():
-        print '\n __   ___   _  _  ___  _   _ ___ ___ _  _ '
+        print Color.magenta()+'' \
+            '\n __   ___   _  _  ___  _   _ ___ ___ _  _ '
         print ' \ \ / /_\ | \| |/ _ \| | | |_ _/ __| || |'
         print '  \ V / _ \| .` | (_) | |_| || |\__ \ __ |'
         print '   \_/_/ \_\_|\_|\__\_\\\\___/|___|___/_||_|'
-        print ' Faster than a one-legged man in a butt kicking contest'
+        print 'Faster than a one-legged man in a butt kicking contest.'+Color.reset()
 
     ##################################################################################
     # Entry point for command-line execution
@@ -623,47 +754,51 @@ class Vanquish:
     @property
     def main(self):
         start_time = time.time()
+        print(Color.green()+"Vanquish Version: " + __version__ + " Updated: " + __lastupdated__)
+        print("Use the -h parameter for detailed help.")
         print(
         "Press CTRL + C to exit an enumeration phase and skip to the next phase (helpful if a command is taking too long)")
         print("Vanquish will skip running a command again if it sees that the output files already exist.")
         print(
         "If you want to re-execute a command, delete the output files (.txt,.xml,.nmap etc.) and run Vanquish again.")
+        print Color.cyan()
         print("Configuration file: " + str(self.args.configFile))
         print("Attack plan file:   " + str(self.args.attackPlanFile))
         print("Output Path:        " + str(self.args.outputFolder))
         print("Host File:          " + str(self.args.hostFile.name))
-        logger.debug("DEBUG MODE ENABLED!")
-        logger.verbose("VERBOSE MODE ENABLED!")
+        print Color.reset()
+        Logger.debug("DEBUG MODE ENABLED!")
+        Logger.verbose("VERBOSE MODE ENABLED!")
 
         # Check folder for existing output
         if not os.path.exists(self.args.outputFolder):
             os.makedirs(self.args.outputFolder)
         elif not self.args.noResume:
-            print "[+] Resuming previous session"
+            print Color.yellow()+"[*]"+Color.reset()+" Resuming previous session"
 
         self.hosts = self.hosts.readlines()
-        logger.verbose("Hosts:" + str(self.hosts))
+        Logger.verbose("Hosts:" + str(self.hosts))
 
         # Start up front NMAP port scans
-        print "[+] Starting upfront Nmap Scan..."
+        print Color.green()+"[+]"+Color.reset()+" Starting upfront Nmap Scan..."
         for scan_command in self.plan.get("Scans Start", "Order").split(","):
-            print "[+] Starting Scan Type: " + scan_command
+            print Color.grey()+"[+]"+Color.reset()+" Starting Scan Type: " + scan_command
             try:
                 if self.args.phase == '': self.upfront_scan_hosts(self.hosts, scan_command)
             except KeyboardInterrupt:
-                logger.debug("Keyboard Interrupt Detected... skipping " + scan_command)
-                print "\t[X] Keyboard Interrupt Detected... skipping " + scan_command
+                Logger.debug("Keyboard Interrupt Detected... skipping " + scan_command)
+                print Color.red()+"[X]"+Color.reset()+" Keyboard Interrupt Detected... skipping " + scan_command
                 continue
             except ValueError as err:
                 bar(self.phase_commands, expected_size=len(self.phase_commands))
                 if len(self.thread_pool_errors) > 0:
-                    logger.debug("[X] Phase completed but encountered the following errors:  \n"
-                                   + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands))
-                    print "[X] Phase completed but encountered the following errors: \n" \
+                    Logger.debug("[X] Phase completed but encountered the following errors:  \n"
+                                 + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands))
+                    print Color.red()+"[X]"+Color.reset()+" Phase completed but encountered the following errors: \n" \
                           + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
                 continue
 
-        print "[+] Starting background Nmap Scan..."
+        print Color.grey()+"[+]"+Color.reset()+" Starting background Nmap Scan..."
 
         # TODO background thread with long term comprehensive scan - restart enumeration when it has finished -
         # Start background Nmap port scans ... these will take time and will run concurrently with enumeration
@@ -675,31 +810,29 @@ class Vanquish:
         # ensure resume is turned on
 
         self.parse_nmap_xml()
-        self.write_report_file(self.nmap_dict)
+        self.write_report_file(self.nmap_dict, self.args.outputFolder, self.args.reportFile)
 
         # Begin Enumeration Phases
-        print "[+] Starting enumeration..."
+        print Color.grey()+"[+]"+Color.reset()+" Starting enumeration..."
         self.enumerate_plan("Enumeration Plan")
 
-        print "[+] Findings Lists Post Processing..."
-        self.findings_post_processing()
-
         # Begin Post Enumeration Phases
-        print "[+] Starting post enumeration..."
+        print Color.grey()+"[+]"+Color.reset()+" Starting post enumeration..."
         self.enumerate_plan("Post Enumeration Plan")
 
         try:
             self.write_report_file(self.nmap_dict)
-            print "[+] Searching for matching exploits..."
+            print Color.grey()+"[+]"+Color.reset()+" Searching for matching exploits..."
             self.exploit_search("SearchSploit JSON")
         except:
             bar(self.phase_commands, expected_size=len(self.phase_commands))
 
+        # Generate Reports
+        sorted_x = sorted(self.risk_score.items(), key=operator.itemgetter(1))
+        self.write_csv_report_file(sorted_x, "Host,Risk Score\n", self.args.outputFolder, "riskscores.csv")
 
-
-
-        print "[+] Elapsed Time: " + time.strftime('%H:%M:%S', time.gmtime(time.time() - start_time))
-        logger.verbose("Goodbye!")
+        print Color.grey()+"[+]"+Color.reset()+" Elapsed Time: " + time.strftime('%H:%M:%S', time.gmtime(time.time() - start_time))
+        Logger.verbose("Goodbye!")
         self.command_error_log.close()
         if self.args.logging:
             self.debug_log.close()
@@ -709,26 +842,7 @@ class Vanquish:
             self.benchmarking_csv.close()
         return 0
 
-    def enumerate_plan(self, plan):
-        for phase in self.plan.get(plan, "Order").split(","):
-            print "[+] Starting Phase: " + phase
-            try:
-                if self.args.phase == phase or self.args.phase == '': self.enumerate(phase)
-            except KeyboardInterrupt:
-                logger.debug("[X] Keyboard Interrupt Detected... exiting phase:: " + phase)
-                logger.debug("[X] Thread Pool at Interrupt: \n" + pformat(self.thread_pool_commands))
-                print "[X] Keyboard Interrupt Detected... exiting phase: " + phase
-                print "[X] Thread Pool at Interrupt:"
-                pprint(self.thread_pool_commands)
-                continue
-            except ValueError as err:
-                bar(self.phase_commands, expected_size=len(self.phase_commands))
-                if len(self.thread_pool_errors) > 0:
-                    logger.debug("[X] Phase completed but encountered the following errors:  \n"
-                                   + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands))
-                    print "[X] Phase completed but encountered the following errors: \n" \
-                          + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
-                continue
+
 
 def main(argv=None):
     vanquish = Vanquish(argv if argv else sys.argv[1:])
