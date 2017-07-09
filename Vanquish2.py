@@ -11,20 +11,18 @@
 # TODO: Finish exploitation dynamic replacements from user credentials list
 # TODO: More to be done with HTTP enumeration and service identification / exploit searches
 # TODO: Move HTTP_NMAP_WEB_SCAN
-# TODO: Set timeout for CURL robots collector
-# TODO: Optimize nikto parameters to speed up this request  v# Starts Fast moves to Through
-# TODO: Implements findigns announce feature
-# TODO: Rank hosts from easiest to most difficult to hack
+# TODO: Add config file findings replacers to run on findings after initial results to clean up data for further enumeration (ex. user credentials, and whatweb service findings)
+# TODO: hash / bas64 finder / flag post process searching
+# TODO: Nmap http enum - include?  or is this redundant at this point?
 # 1. NMAP Scan
 # 2. Service Enumeration Scan
 # 3. Finds relavant exploits and copies to a subfolder
-# TODO: still havent finished the following features
 # 3. Word list creation 1st pass
 #       Banner Grabx
 #       HTTP Enum
-#       Spider site
-#       HTTP Download all assets
-#       Image Scan - Meta / Steg / OCR
+#       TODO: Spider site
+#       TODO: HTTP Download all assets
+#       TODO: Image Scan - Meta / Steg / OCR
 #       Create Site Map txt file for all assets
 #       Create Wordlist version1
 #
@@ -41,8 +39,8 @@ Main application logic and automation functions
 """
 from parser import ParserError
 
-__version__ = '0.12'
-__lastupdated__ = 'July 8, 2017'
+__version__ = '0.14'
+__lastupdated__ = 'July 9, 2017'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
 __accounce_label__ = 'announce'
