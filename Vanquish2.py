@@ -2,8 +2,18 @@
 # -*- coding: utf-8 -*-
 # Vanquish
 # Root2Boot automation platform designed to systematically enumernate and exploit using the law of diminishing returns
-#
+# TODO: move enumeration phase and scan type titles to progress bar labels
+# TODO: remove upfront_scan_hosts funciton and merge with enumerate function
+# TODO: getting false positives from Nikto - Nmap0
+# -0.Shell Shock Script against specific folder paths
+# nmap 10.11.1.71 -p 80 \
+#  --script=http-shellshock \
+#  --script-args uri=/cgi-bin/test.cgi --script-args uri=/cgi-bin/admin.cgi
+# TODO: Automate DNS Name lookup NMap XML generation upon discovering a DNS server
+# TODO: Exploit Apache Mod CGI - cp /usr/share/exploitdb/platforms/linux/remote/34900.py ./Documents/EXploitz/Apache_Mod_CGI.py
+# TODO: shell shock exploit curl -H 'User-Agent: () { :; }; echo "CVE-2014-6271 vulnerable" bash -c id' http://10.11.1.71/cgi-bin/admin.cgi
 # TODO: Import data into MSF database and generate pretty table reports of servers and ports
+# TODO: Combine scanning and information gathering loops
 # TODO: Append the exact command that is used to the output text files for easy refernce in documentation
 # TODO: Create a suggest only mode that dumps a list of commands to try rather than running anything
 # TODO: Add color and -color -colour flags to disable it
@@ -14,6 +24,7 @@
 # TODO: Add config file findings replacers to run on findings after initial results to clean up data for further enumeration (ex. user credentials, and whatweb service findings)
 # TODO: hash / bas64 finder / flag post process searching
 # TODO: Nmap http enum - include?  or is this redundant at this point?
+# TODO: Add Metasploit style summary table with number of services, commands, phases etc.
 # 1. NMAP Scan
 # 2. Service Enumeration Scan
 # 3. Finds relavant exploits and copies to a subfolder
@@ -39,8 +50,8 @@ Main application logic and automation functions
 """
 from parser import ParserError
 
-__version__ = '0.14'
-__lastupdated__ = 'July 9, 2017'
+__version__ = '0.15'
+__lastupdated__ = 'July 15, 2017'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
 __accounce_label__ = 'announce'
@@ -248,7 +259,8 @@ class Vanquish:
     def __init__(self, argv):
         self.banner()
         self.parser = argparse.ArgumentParser(
-            description='Root2Boot automation platform designed to systematically enumernate and exploit using the law of diminishing returns.')
+            description='Root2Boot automation platform designed to systematically enumernate and exploit using the'
+                        ' law of diminishing returns.')
         self.parser.add_argument("-outputFolder", metavar='folder', type=str, default="",
                                  help='output folder path (default: name of the host file))')
         self.parser.add_argument("-configFile", metavar='file', type=str, default="config.ini",
@@ -257,8 +269,13 @@ class Vanquish:
                                  help='attack plan ini file (default: %(default)s)')
         self.parser.add_argument("-hostFile", metavar='file', type=argparse.FileType("r"), default="hosts.txt",
                                  help='list of hosts to attack (default: %(default)s)')
-        self.parser.add_argument("-domain", metavar='domain', type=str, default="thinc.local",
-                                 help='domain to use in DNS enumeration (default: %(default)s)')
+        self.parser.add_argument("-workspace", metavar='workspace', type=str, default="",
+                                 help='Metasploit workspace to import data into (default: is the host filename)')
+        self.parser.add_argument("-domain", metavar='domain', type=str, default="megacorpone.com",
+                                 help='Domain to be used in DNS enumeration (default: %(default)s)')
+        self.parser.add_argument("-dnsServer", metavar='dnsServer', type=str, default="",
+                                 help='DNS server option to use with Nmap DNS enumeration. Reveals the host names of'
+                                      ' each server (default: %(default)s)')
         self.parser.add_argument("-reportFile", metavar='report', type=str, default="report.txt",
                                  help='filename used for the report (default: %(default)s)')
         self.parser.add_argument("-noResume", action='store_true', help='do not resume a previous session')
@@ -267,7 +284,8 @@ class Vanquish:
         self.parser.add_argument("-phase", metavar='phase', type=str, default='', help='only execute a specific phase')
         self.parser.add_argument("-noExploitSearch", action='store_true', help='disable searchspolit exploit searching')
         self.parser.add_argument("-benchmarking", action='store_true',
-                                 help='enable bench mark reporting on the execution time of commands(exports to benchmark.csv)')
+                                 help='enable bench mark reporting on the execution time of commands(exports '
+                                      'to benchmark.csv)')
         self.parser.add_argument("-logging", action='store_true', help='enable verbose and debug data logging to files')
         self.parser.add_argument("-verbose", action='store_true', help='display verbose details during the scan')
         self.parser.add_argument("-debug", action='store_true', help='display debug details during the scan')
@@ -286,9 +304,19 @@ class Vanquish:
         if self.args.outputFolder == "":
             self.args.outputFolder = "." + os.path.sep + str(self.args.hostFile.name).split(".")[0]
 
+        # Metasploit workspace name - the workspace name is the name of the host file minus it's extension
+        if self.args.workspace == "":
+            self.workspace = str(self.args.hostFile.name).split(".")[0]
+        else:
+            self.workspace = self.args.workspace
+
         # load attack plan
         self.plan = ConfigParser.ConfigParser()
         self.plan.read(self.args.attackPlanFile)
+
+        self.nmap_dns_server = ""
+        if self.args.dnsServer != "":
+            self.nmap_dns_server = " --dns-server "+self.args.dnsServer
 
         # Master NMAP Data Structure Dict
         self.nmap_dict = {}
@@ -298,7 +326,10 @@ class Vanquish:
 
         # announced vulnerabilities - Prevent findings from being reported multiple times
         self.announced = {}
+        # calculate risk scores as we enumerate
         self.risk_score = {}
+        # track that these commands are only run once per phase
+        self.run_once = {}
 
         # Current Thread Pool command contents
         self.thread_pool_commands = []
@@ -336,7 +367,8 @@ class Vanquish:
             command_keys = {
                 'output': os.path.join(nmap_path,
                                        command_label.replace(" ", "_") + "_" + host.strip().replace(".", "_")),
-                'target': host.strip()}
+                'target': host.strip(),
+                'nmap dns server': self.nmap_dns_server}
             command = self.prepare_command(command_label, command_keys)
             base, filename = os.path.split(command_keys['output'])  # Resume file already exists
             if not self.args.noResume and self.find_files(base, filename + ".*").__len__() > 0:
@@ -355,7 +387,7 @@ class Vanquish:
 
     # Parse Nmap XML - Reads all the Nmap xml files in the Nmap folder
     def parse_nmap_xml(self):
-        print "[+] Reading Nmap XML Output Files..."
+        Logger.verbose("[+] Reading Nmap XML Output Files...")
         port_attribs_to_read = ['protocol', 'portid']
         service_attribs_to_read = ['name', 'product', 'version', 'extrainfo', 'method', 'tunnel']
         state_attribs_to_read = ['state', 'reason']
@@ -462,7 +494,12 @@ class Vanquish:
             host_ports = [d['portid'] for d in self.nmap_dict[host]['ports'] if 'portid' in d]
             if self.plan.has_option(phase_name, 'always'):
                 self.nmap_dict[host]['ports'].append(
-                    {'state': 'open', 'name': 'always', 'portid': '0', 'product': 'Vanquish Added Always Service'})
+                    {'state': 'open', 'name': 'always', 'portid': '0', 'product': 'Vànquìsh Added Always Service'})
+            if self.plan.has_option(phase_name, 'run once'):
+                if self.run_once.get(phase_name) is None:
+                    self.run_once[phase_name] = host
+                    self.nmap_dict[host]['ports'].append(
+                        {'state': 'open', 'name': 'run once', 'portid': '-1', 'product': 'Vànquìsh Added Run Once Service'})
             for service in self.nmap_dict[host]['ports']:
                 Logger.debug("\tenumerate() - port_number: " + str(service))
                 for known_service, ports in self.config.items('Service Ports'):
@@ -474,12 +511,16 @@ class Vanquish:
                                     command_keys = {
                                         'output': self.get_enumeration_path(host, service['name'], service['portid'],
                                                                             command_label),
+                                        'output folder': self.args.outputFolder,
                                         'target': host,
                                         'domain': self.args.domain,
                                         'service': service['name'],
                                         'port': service['portid'],
                                         'host ports comma': ",".join(host_ports),
-                                        'host ports space': " ".join(host_ports)
+                                        'host ports space': " ".join(host_ports),
+                                        'host file': self.args.hostFile.name,
+                                        'nmap dns server': self.nmap_dns_server,
+                                        'workspace': self.workspace,
                                     }
                                     base, filename = os.path.split(command_keys['output'])  # Resume file already exists
                                     if not self.args.noResume and self.find_files(base, filename + ".*").__len__() > 0:
@@ -528,8 +569,11 @@ class Vanquish:
                                                 else:
                                                     for item in self.config.items(section):
                                                         command = command.replace("<" + item[0] + ">", item[1])
-                                        if do_not_append == False: self.phase_commands.append(command)
-                                        Logger.debug("enumerate() - command : " + command_label)
+                                        if not do_not_append and "<"+__findings_label_dynamic__ not in command:
+                                            self.phase_commands.append(command)
+                                            Logger.debug("enumerate() - added command : " + command_label)
+                                        else:
+                                            Logger.debug("enumerate() - skipped command : " + command_label)
                         else:
                             Logger.debug("\tenumerate() - NO command section found for phase: " + phase_name +
                                          " service name: " + known_service)
@@ -572,6 +616,7 @@ class Vanquish:
     def enumerate_plan(self, plan):
         for phase in self.plan.get(plan, "Order").split(","):
             print Color.green()+"[+]"+Color.reset()+" Starting Phase: " + phase
+            Logger.verbose("[+] Starting Phase: " + phase)
             try:
                 if self.args.phase == phase or self.args.phase == '': self.enumerate(phase)
             except KeyboardInterrupt:
@@ -590,7 +635,7 @@ class Vanquish:
                           + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
                 continue
 
-            print Color.grey()+"[+]"+Color.reset()+" Finding's Post Processing..."
+            Logger.verbose("[+] Finding's Post Processing...")
             self.findings_post_processing()
 
 
@@ -621,19 +666,23 @@ class Vanquish:
                                     match = regex.match(line)
                                     if match is not None:
                                         self.findings[list_type].append(match.group(1))
-                                        announcement = str(current_host).strip() + ": " + match.group(1);
+                                        announcement = str(current_host).strip() + ":  \t" + match.group(1);
                                         if __accounce_label__ in item[0] and self.announced.get(announcement) != 1:
                                             self.announced[announcement] = 1
-                                            print Color.redback() + "[!] " + announcement + Color.reset()
+                                            print Color.redback() + "[!] " + announcement + \
+                                                  " " + re.sub(__findings_label__ + " " + __accounce_label__+ "\d*","",str(item[0])) \
+                                                  + Color.reset()
 
                             # Next try multiline search mode
                             matches = re.search(item[1], wholefile, re.MULTILINE)
                             if matches and matches.group(1) is not None:
                                 self.findings[list_type].append(matches.group(1))
-                                announcement = str(current_host).strip() + ": " + matches.group(1);
+                                announcement = str(current_host).strip() + ":  \t" + matches.group(1);
                                 if __accounce_label__ in item[0] and self.announced.get(announcement) != 1:
                                     self.announced[announcement] = 1
-                                    print Color.redback() + "[!] "+ announcement + Color.reset()
+                                    print Color.redback() + "[!] " +  announcement +\
+                                          " " + re.sub(__findings_label__ + " " + __accounce_label__+ "\d*","",str(item[0])) +\
+                                          Color.reset()
             # Remove duplicates and output results to findings files
             for findings_list in self.findings:
                 self.findings[findings_list] = self.remove_duplicates(self.findings[findings_list])
@@ -819,7 +868,6 @@ class Vanquish:
         self.enumerate_plan("Post Enumeration Plan")
 
         try:
-            self.write_report_file(self.nmap_dict)
             print Color.grey()+"[+]"+Color.reset()+" Searching for matching exploits..."
             self.exploit_search("SearchSploit JSON")
         except:
