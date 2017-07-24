@@ -2,22 +2,25 @@
 # -*- coding: utf-8 -*-
 # Vanquish
 # Root2Boot automation platform designed to systematically enumernate and exploit using the law of diminishing returns
-# TODO: move enumeration phase and scan type titles to progress bar labels
-# TODO: remove upfront_scan_hosts funciton and merge with enumerate function
+# DONE: Automate DNS Name lookup NMap XML generation upon discovering a DNS server
+# DONE: remove upfront_scan_hosts funciton and merge with enumerate function
+# DONE: Import data into MSF database and generate pretty table reports of servers and ports
+# DONE: Combine scanning and information gathering loops
+# DONE: Create custom password word list from CEWL URL Findings, Users, domains, groups, ComputerName
+# TODO: Command to parse credential findings from Hydra and parse them into ../credentals.txt
+# TODO: The findings list can also leverage a regular expression to extract a substring from each line of a findings file
+# TODO: remove exploit search function and merge with enumerate function
 # TODO: getting false positives from Nikto - Nmap0
 # -0.Shell Shock Script against specific folder paths
 # nmap 10.11.1.71 -p 80 \
 #  --script=http-shellshock \
 #  --script-args uri=/cgi-bin/test.cgi --script-args uri=/cgi-bin/admin.cgi
-# TODO: Automate DNS Name lookup NMap XML generation upon discovering a DNS server
 # TODO: Exploit Apache Mod CGI - cp /usr/share/exploitdb/platforms/linux/remote/34900.py ./Documents/EXploitz/Apache_Mod_CGI.py
 # TODO: shell shock exploit curl -H 'User-Agent: () { :; }; echo "CVE-2014-6271 vulnerable" bash -c id' http://10.11.1.71/cgi-bin/admin.cgi
-# TODO: Import data into MSF database and generate pretty table reports of servers and ports
-# TODO: Combine scanning and information gathering loops
 # TODO: Append the exact command that is used to the output text files for easy refernce in documentation
 # TODO: Create a suggest only mode that dumps a list of commands to try rather than running anything
 # TODO: Add color and -color -colour flags to disable it
-# TODO: Create custom password word list from CEWL URL Findings, Users, domains, groups, ComputerName
+
 # TODO: Finish exploitation dynamic replacements from user credentials list
 # TODO: More to be done with HTTP enumeration and service identification / exploit searches
 # TODO: Move HTTP_NMAP_WEB_SCAN
@@ -50,8 +53,8 @@ Main application logic and automation functions
 """
 from parser import ParserError
 
-__version__ = '0.15'
-__lastupdated__ = 'July 15, 2017'
+__version__ = '0.16'
+__lastupdated__ = 'July 22, 2017'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
 __accounce_label__ = 'announce'
@@ -204,56 +207,67 @@ class Color:
     def redback():
         if Color.ENABLE_COLOR:
             return "\033[0m\033[37m\033[41m"
+	else: return ""
 
     @staticmethod
     def black():
         if Color.ENABLE_COLOR:
             return '\033[0;30m'
+	else: return ""
 
     @staticmethod
     def red():
         if Color.ENABLE_COLOR:
             return '\033[0;31m'
+	else: return ""
 
     @staticmethod
     def green():
         if Color.ENABLE_COLOR:
             return '\033[0;32m'
+	else: return ""
 
     @staticmethod
     def yellow():
         if Color.ENABLE_COLOR:
             return '\033[0;33m'
+	else: return ""
 
     @staticmethod
     def blue():
         if Color.ENABLE_COLOR:
             return '\033[0;34m'
+	else: return ""
 
     @staticmethod
     def magenta():
         if Color.ENABLE_COLOR:
             return '\033[0;35m'
+	else: return ""
 
     @staticmethod
     def cyan():
         if Color.ENABLE_COLOR:
             return '\033[0;36m'
+	else: return ""
 
     @staticmethod
     def grey():
         if Color.ENABLE_COLOR:
             return '\033[0;37m'
+	else: return ""
 
     @staticmethod
     def white():
         if Color.ENABLE_COLOR:
             return '\033[0;38m'
+	else: return ""
 
     @staticmethod
     def reset():
         if Color.ENABLE_COLOR:
             return '\033[0;39m'
+	else: return ""
 
 class Vanquish:
     def __init__(self, argv):
@@ -279,6 +293,7 @@ class Vanquish:
         self.parser.add_argument("-reportFile", metavar='report', type=str, default="report.txt",
                                  help='filename used for the report (default: %(default)s)')
         self.parser.add_argument("-noResume", action='store_true', help='do not resume a previous session')
+        self.parser.add_argument("-noColor", action='store_true', help='do not display color')
         self.parser.add_argument("-threadPool", metavar='threads', type=int, default="8",
                                  help='Thread Pool Size (default: %(default)s)')
         self.parser.add_argument("-phase", metavar='phase', type=str, default='', help='only execute a specific phase')
@@ -300,9 +315,24 @@ class Vanquish:
         Logger.VERBOSE = (self.config.getboolean("System", "Verbose") or self.args.verbose)
         Logger.DEBUG = (self.config.getboolean("System", "Debug") or self.args.debug)
 
+
         # Default output location
         if self.args.outputFolder == "":
             self.args.outputFolder = "." + os.path.sep + str(self.args.hostFile.name).split(".")[0]
+
+	# Nmap scan output folder
+        self.nmap_path = os.path.join(self.args.outputFolder, __nmap_folder__)
+
+        # Check folder for existing output and nmap folders
+        if not os.path.exists(self.args.outputFolder):
+            os.makedirs(self.args.outputFolder)
+        elif not self.args.noResume:
+            print Color.yellow()+"[*]"+Color.reset()+" Resuming previous session"
+	if not os.path.exists(self.nmap_path):
+            os.makedirs(self.nmap_path)
+
+	if self.args.noColor:
+		Color.ENABLE_COLOR = False;
 
         # Metasploit workspace name - the workspace name is the name of the host file minus it's extension
         if self.args.workspace == "":
@@ -353,38 +383,7 @@ class Vanquish:
         #sys.stderr = self.command_error_log
         self.devnull = open(os.devnull, 'w')
 
-    # Scan the hosts using Nmap
-    # Create a thread pool and run multiple nmap sessions in parallel
-    def upfront_scan_hosts(self, hosts, command_label):
-        Logger.debug("scan_hosts() - command label : " + command_label)
-        pool = ThreadPool(self.args.threadPool)
-        self.phase_commands = []
-        nmap_path = os.path.join(self.args.outputFolder, __nmap_folder__)
-        # Check folder for existing service
-        if not os.path.exists(nmap_path):
-            os.makedirs(nmap_path)
-        for host in hosts:
-            command_keys = {
-                'output': os.path.join(nmap_path,
-                                       command_label.replace(" ", "_") + "_" + host.strip().replace(".", "_")),
-                'target': host.strip(),
-                'nmap dns server': self.nmap_dns_server}
-            command = self.prepare_command(command_label, command_keys)
-            base, filename = os.path.split(command_keys['output'])  # Resume file already exists
-            if not self.args.noResume and self.find_files(base, filename + ".*").__len__() > 0:
-                Logger.debug("scan_hosts() - RESUME - output file already exists: "
-                             + command_keys['output'])
-            else:
-                self.phase_commands.append(command)
-                Logger.verbose("root@kali:/# " + command)
-
-        # results = pool.map(self.execute_scan, self.phase_commands)
-        for _ in bar(pool.imap_unordered(self.execute_command, self.phase_commands),
-                     expected_size=len(self.phase_commands)):
-            pass
-        pool.close()
-        pool.join()
-
+        
     # Parse Nmap XML - Reads all the Nmap xml files in the Nmap folder
     def parse_nmap_xml(self):
         Logger.verbose("[+] Reading Nmap XML Output Files...")
@@ -512,6 +511,7 @@ class Vanquish:
                                         'output': self.get_enumeration_path(host, service['name'], service['portid'],
                                                                             command_label),
                                         'output folder': self.args.outputFolder,
+				 	'output nmap': os.path.join(self.nmap_path,command_label.replace(" ", "_") + "_" + host.strip().replace(".", "_")),
                                         'target': host,
                                         'domain': self.args.domain,
                                         'service': service['name'],
@@ -634,7 +634,8 @@ class Vanquish:
                     print Color.red()+"[X]"+Color.reset()+" Phase completed but encountered the following errors: \n" \
                           + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
                 continue
-
+	    self.parse_nmap_xml()
+	    self.write_report_file(self.nmap_dict, self.args.outputFolder, self.args.reportFile)
             Logger.verbose("[+] Finding's Post Processing...")
             self.findings_post_processing()
 
@@ -817,51 +818,16 @@ class Vanquish:
         Logger.debug("DEBUG MODE ENABLED!")
         Logger.verbose("VERBOSE MODE ENABLED!")
 
-        # Check folder for existing output
-        if not os.path.exists(self.args.outputFolder):
-            os.makedirs(self.args.outputFolder)
-        elif not self.args.noResume:
-            print Color.yellow()+"[*]"+Color.reset()+" Resuming previous session"
 
         self.hosts = self.hosts.readlines()
         Logger.verbose("Hosts:" + str(self.hosts))
+	for host in self.hosts:
+		self.nmap_dict[host] = { "ports": [] };
 
-        # Start up front NMAP port scans
-        print Color.green()+"[+]"+Color.reset()+" Starting upfront Nmap Scan..."
-        for scan_command in self.plan.get("Scans Start", "Order").split(","):
-            print Color.grey()+"[+]"+Color.reset()+" Starting Scan Type: " + scan_command
-            try:
-                if self.args.phase == '': self.upfront_scan_hosts(self.hosts, scan_command)
-            except KeyboardInterrupt:
-                Logger.debug("Keyboard Interrupt Detected... skipping " + scan_command)
-                print Color.red()+"[X]"+Color.reset()+" Keyboard Interrupt Detected... skipping " + scan_command
-                continue
-            except ValueError as err:
-                bar(self.phase_commands, expected_size=len(self.phase_commands))
-                if len(self.thread_pool_errors) > 0:
-                    Logger.debug("[X] Phase completed but encountered the following errors:  \n"
-                                 + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands))
-                    print Color.red()+"[X]"+Color.reset()+" Phase completed but encountered the following errors: \n" \
-                          + pformat(self.thread_pool_errors) + pformat(self.thread_pool_commands)
-                continue
 
-        print Color.grey()+"[+]"+Color.reset()+" Starting background Nmap Scan..."
-
-        # TODO background thread with long term comprehensive scan - restart enumeration when it has finished -
-        # Start background Nmap port scans ... these will take time and will run concurrently with enumeration
-        # for scan_command in self.plan.get("Scans Start", "Order").split(","):
-        #    self.upfront_scan_hosts(self.hosts, scan_command)
-        # thread = threading.Thread(target=self.background_scan_hosts, args=())
-        # thread.daemon = True                            # Daemonize thread
-        # thread.start()                                  # Start the execution
-        # ensure resume is turned on
-
-        self.parse_nmap_xml()
-        self.write_report_file(self.nmap_dict, self.args.outputFolder, self.args.reportFile)
-
-        # Begin Enumeration Phases
-        print Color.grey()+"[+]"+Color.reset()+" Starting enumeration..."
-        self.enumerate_plan("Enumeration Plan")
+	for scan_phase in self.plan.get("Nmap Scans", "Order").split(","):
+		self.enumerate_plan(scan_phase)
+        	self.enumerate_plan("Enumeration Plan")
 
         # Begin Post Enumeration Phases
         print Color.grey()+"[+]"+Color.reset()+" Starting post enumeration..."
