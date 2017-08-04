@@ -508,11 +508,11 @@ class Vanquish:
                             for command_label in self.plan.get(phase_name, known_service).split(','):
                                 if command_label is not '':
                                     command_keys = {
-                                        'output': self.get_enumeration_path(host, service['name'], service['portid'],
+                                        'output': self.get_enumeration_path(host.strip(), service['name'], service['portid'],
                                                                             command_label),
                                         'output folder': self.args.outputFolder,
 				 	'output nmap': os.path.join(self.nmap_path,command_label.replace(" ", "_") + "_" + host.strip().replace(".", "_")),
-                                        'target': host,
+                                        'target': host.strip(),
                                         'domain': self.args.domain,
                                         'service': service['name'],
                                         'port': service['portid'],
