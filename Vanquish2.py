@@ -36,7 +36,7 @@
 #       HTTP Enum
 #       TODO: Spider site
 #       TODO: HTTP Download all assets
-#       TODO: Image Scan - Meta / Steg / OCR
+#       TODO: Image Scan - Meta / Steg / OCRd
 #       Create Site Map txt file for all assets
 #       Create Wordlist version1
 #
@@ -53,8 +53,8 @@ Main application logic and automation functions
 """
 from parser import ParserError
 
-__version__ = '0.16'
-__lastupdated__ = 'July 22, 2017'
+__version__ = '0.22'
+__lastupdated__ = 'August 19, 2017'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
 __accounce_label__ = 'announce'
@@ -272,8 +272,9 @@ class Color:
 class Vanquish:
     def __init__(self, argv):
         self.banner()
+        print(Color.green()+"Vanquish Version: " + __version__ + " Updated: " + __lastupdated__ +Color.reset())
         self.parser = argparse.ArgumentParser(
-            description='Root2Boot automation platform designed to systematically enumernate and exploit using the'
+            description='Boot2Root automation platform designed to systematically enumernate and exploit using the'
                         ' law of diminishing returns.')
         self.parser.add_argument("-outputFolder", metavar='folder', type=str, default="",
                                  help='output folder path (default: name of the host file))')
@@ -424,6 +425,11 @@ class Vanquish:
                                             self.nmap_dict[addr]['hostname'] = attribute.get('hostname', '')
                                         if attribute.get('tunnel', '') == 'ssl' and attribute.get('name', '') == 'http':
                                             element_dict['name'] = 'https'
+                                        # If we have encountered an unknown service set the name to unknown so we can still enum
+                                        if attribute.get('name', None) is None:
+                                            for attrib_name in service_attribs_to_read:
+                                                element_dict[attrib_name] = ''
+                                            element_dict['name'] = 'unknown'
                             # Check to see if this port already exists
                             port_was_merged = False
                             if self.nmap_dict[addr].get('ports', None) is not None:
@@ -431,8 +437,7 @@ class Vanquish:
                                     if port['portid'] == element_dict['portid']:
                                         port_was_merged = True
                                         for element in service_attribs_to_read:
-                                            if len(element_dict[element]) > 0: self.nmap_dict[addr]['ports'][pos][
-                                                element] = element_dict[element]
+                                            if len(element_dict[element]) > 0: self.nmap_dict[addr]['ports'][pos][element] = element_dict[element]
                             if port_was_merged is False:
                                 port_dict.append(element_dict)
                         if self.nmap_dict[addr].get('ports', None) is None:
@@ -493,12 +498,12 @@ class Vanquish:
             host_ports = [d['portid'] for d in self.nmap_dict[host]['ports'] if 'portid' in d]
             if self.plan.has_option(phase_name, 'always'):
                 self.nmap_dict[host]['ports'].append(
-                    {'state': 'open', 'name': 'always', 'portid': '0', 'product': 'Vànquìsh Added Always Service'})
+                    {'state': 'open', 'name': 'always', 'portid': '0', 'product': 'Vanquish Added Always Service'})
             if self.plan.has_option(phase_name, 'run once'):
                 if self.run_once.get(phase_name) is None:
                     self.run_once[phase_name] = host
                     self.nmap_dict[host]['ports'].append(
-                        {'state': 'open', 'name': 'run once', 'portid': '-1', 'product': 'Vànquìsh Added Run Once Service'})
+                        {'state': 'open', 'name': 'run once', 'portid': '-1', 'product': 'Vanquish Added Run Once Service'})
             for service in self.nmap_dict[host]['ports']:
                 Logger.debug("\tenumerate() - port_number: " + str(service))
                 for known_service, ports in self.config.items('Service Ports'):
@@ -508,11 +513,11 @@ class Vanquish:
                             for command_label in self.plan.get(phase_name, known_service).split(','):
                                 if command_label is not '':
                                     command_keys = {
-                                        'output': self.get_enumeration_path(host.strip(), service['name'], service['portid'],
+                                        'output': self.get_enumeration_path(host, service['name'], service['portid'],
                                                                             command_label),
                                         'output folder': self.args.outputFolder,
-				 	'output nmap': os.path.join(self.nmap_path,command_label.replace(" ", "_") + "_" + host.strip().replace(".", "_")),
-                                        'target': host.strip(),
+				 	'output nmap': os.path.join(self.nmap_path,command_label.replace(" ", "_") + "_" + host.replace(".", "_")),
+                                        'target': host,
                                         'domain': self.args.domain,
                                         'service': service['name'],
                                         'port': service['portid'],
@@ -642,7 +647,7 @@ class Vanquish:
 
     def findings_post_processing(self):
         for current_host in self.hosts:
-            host_path = os.path.join(self.args.outputFolder, str(current_host).strip().replace(".", "_"))
+            host_path = os.path.join(self.args.outputFolder, current_host.replace(".", "_"))
             files_to_process = [os.path.join(dp, f) for dp, dn, fn in os.walk(os.path.expanduser(host_path))
                                 for f in fn]
             self.findings = {'users': [], 'urls': [], 'groups': [], 'passwords': [], 'vulnerabilities': []}
@@ -667,7 +672,7 @@ class Vanquish:
                                     match = regex.match(line)
                                     if match is not None:
                                         self.findings[list_type].append(match.group(1))
-                                        announcement = str(current_host).strip() + ":  \t" + match.group(1);
+                                        announcement = current_host + ":  \t" + match.group(1);
                                         if __accounce_label__ in item[0] and self.announced.get(announcement) != 1:
                                             self.announced[announcement] = 1
                                             print Color.redback() + "[!] " + announcement + \
@@ -678,7 +683,7 @@ class Vanquish:
                             matches = re.search(item[1], wholefile, re.MULTILINE)
                             if matches and matches.group(1) is not None:
                                 self.findings[list_type].append(matches.group(1))
-                                announcement = str(current_host).strip() + ":  \t" + matches.group(1);
+                                announcement = current_host + ":  \t" + matches.group(1);
                                 if __accounce_label__ in item[0] and self.announced.get(announcement) != 1:
                                     self.announced[announcement] = 1
                                     print Color.redback() + "[!] " +  announcement +\
@@ -708,10 +713,10 @@ class Vanquish:
                 risk_score += 20
             else:
                 risk_score += len(self.findings.get(__urlshttps_list_label__, []))
-            self.risk_score[str(current_host).strip()] = risk_score
+            self.risk_score[current_host] = risk_score
 
     def get_enumeration_path(self, host, service, port, command):
-        ip_path = os.path.join(self.args.outputFolder, host.strip().replace(".", "_"))
+        ip_path = os.path.join(self.args.outputFolder, host.replace(".", "_"))
         if not os.path.exists(ip_path): os.makedirs(ip_path)
         service_path = os.path.join(ip_path, service)
         if not os.path.exists(service_path): os.makedirs(service_path)
@@ -802,7 +807,6 @@ class Vanquish:
     @property
     def main(self):
         start_time = time.time()
-        print(Color.green()+"Vanquish Version: " + __version__ + " Updated: " + __lastupdated__)
         print("Use the -h parameter for detailed help.")
         print(
         "Press CTRL + C to exit an enumeration phase and skip to the next phase (helpful if a command is taking too long)")
@@ -818,16 +822,14 @@ class Vanquish:
         Logger.debug("DEBUG MODE ENABLED!")
         Logger.verbose("VERBOSE MODE ENABLED!")
 
-
-        self.hosts = self.hosts.readlines()
+        self.hosts = self.hosts.read().splitlines()
         Logger.verbose("Hosts:" + str(self.hosts))
-	for host in self.hosts:
-		self.nmap_dict[host] = { "ports": [] };
+        for host in self.hosts:
+            self.nmap_dict[host] = { "ports": [] };
 
-
-	for scan_phase in self.plan.get("Nmap Scans", "Order").split(","):
-		self.enumerate_plan(scan_phase)
-        	self.enumerate_plan("Enumeration Plan")
+        for scan_phase in self.plan.get("Nmap Scans", "Order").split(","):
+            if scan_phase is not '': self.enumerate_plan(scan_phase)
+            self.enumerate_plan("Enumeration Plan")
 
         # Begin Post Enumeration Phases
         print Color.grey()+"[+]"+Color.reset()+" Starting post enumeration..."
