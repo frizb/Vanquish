@@ -7,6 +7,12 @@
 # DONE: Import data into MSF database and generate pretty table reports of servers and ports
 # DONE: Combine scanning and information gathering loops
 # DONE: Create custom password word list from CEWL URL Findings, Users, domains, groups, ComputerName
+# DONE: Installer script and setup
+
+# TODO: Attack plans config associated with one or more Config files - simplify - only specify an attack plan and a target
+# TODO: Load findings from files here for merging - dont overwrite user added findings...
+# TODO: SMB Hydra is running twice - 139 and 445 - 445 is the only service that returns results - STOP hydra from running 139
+# TODO: Pipe any SMB credentials found back into Enum4Linux
 # TODO: Command to parse credential findings from Hydra and parse them into ../credentals.txt
 # TODO: The findings list can also leverage a regular expression to extract a substring from each line of a findings file
 # TODO: remove exploit search function and merge with enumerate function
@@ -53,8 +59,8 @@ Main application logic and automation functions
 """
 from parser import ParserError
 
-__version__ = '0.22'
-__lastupdated__ = 'August 19, 2017'
+__version__ = '0.24'
+__lastupdated__ = 'September 8, 2017'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
 __accounce_label__ = 'announce'
@@ -651,6 +657,8 @@ class Vanquish:
             files_to_process = [os.path.join(dp, f) for dp, dn, fn in os.walk(os.path.expanduser(host_path))
                                 for f in fn]
             self.findings = {'users': [], 'urls': [], 'groups': [], 'passwords': [], 'vulnerabilities': []}
+            # TODO: Load findings from files here for merging - dont overwrite user added findings...
+
             for file in files_to_process:
                 base, filename = os.path.split(file)
                 if base.endswith(__nmap_folder__): continue
