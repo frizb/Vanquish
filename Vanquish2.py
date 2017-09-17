@@ -297,6 +297,9 @@ class Vanquish:
         self.parser.add_argument("-dnsServer", metavar='dnsServer', type=str, default="",
                                  help='DNS server option to use with Nmap DNS enumeration. Reveals the host names of'
                                       ' each server (default: %(default)s)')
+        self.parser.add_argument("-proxy", metavar='proxy', type=str, default="",
+                                 help='Proxy server option to use with scanning tools that support proxies. Should be '
+                                      ' in the format of ip:port (default: %(default)s)')
         self.parser.add_argument("-reportFile", metavar='report', type=str, default="report.txt",
                                  help='filename used for the report (default: %(default)s)')
         self.parser.add_argument("-noResume", action='store_true', help='do not resume a previous session')
@@ -354,6 +357,10 @@ class Vanquish:
         self.nmap_dns_server = ""
         if self.args.dnsServer != "":
             self.nmap_dns_server = " --dns-server "+self.args.dnsServer
+
+        self.proxy_server = ""
+        if self.args.proxy != "":
+            self.proxy_server = " --proxy "+self.args.proxy
 
         # Master NMAP Data Structure Dict
         self.nmap_dict = {}
@@ -531,6 +538,8 @@ class Vanquish:
                                         'host ports space': " ".join(host_ports),
                                         'host file': self.args.hostFile.name,
                                         'nmap dns server': self.nmap_dns_server,
+                                        'nmap proxy server': self.proxy_server,
+                                        'proxy server': self.args.proxy,
                                         'workspace': self.workspace,
                                     }
                                     base, filename = os.path.split(command_keys['output'])  # Resume file already exists
