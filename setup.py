@@ -2,11 +2,11 @@ from distutils.core import setup
 
 setup(
     name='Vanquish',
-    version='0.18',
+    version='0.25',
     packages=[''],
     url='https://github.com/frizb/Vanquish',
     license='MIT',
     author='Austin Scott',
-    author_email='frizb_@hotmail.com',
-    description='Kali automation platform designed to systematically enumerate and exploit using the law of diminishing returns'
+    author_email='austin.scott@icsrisk.com',
+    description='Vanquish is Kali Linux based Enumeration Orchestrator.  Vanquish leverages the opensource enumeration tools on Kali to perform multiple active information gathering phases. '
 )

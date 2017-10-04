@@ -280,8 +280,7 @@ class Vanquish:
         self.banner()
         print(Color.green()+"Vanquish Version: " + __version__ + " Updated: " + __lastupdated__ +Color.reset())
         self.parser = argparse.ArgumentParser(
-            description='Boot2Root automation platform designed to systematically enumernate and exploit using the'
-                        ' law of diminishing returns.')
+            description='Vanquish is Kali Linux based Enumeration Orchestrator.')
         self.parser.add_argument("-install", action='store_true',
                                  help='Install Vanquish and it\'s requirements')
         self.parser.add_argument("-outputFolder", metavar='folder', type=str, default="",
@@ -831,12 +830,6 @@ class Vanquish:
     @property
     def main(self):
         start_time = time.time()
-        print("Use the -h parameter for detailed help.")
-        print(
-        "Press CTRL + C to exit an enumeration phase and skip to the next phase (helpful if a command is taking too long)")
-        print("Vanquish will skip running a command again if it sees that the output files already exist.")
-        print(
-        "If you want to re-execute a command, delete the output files (.txt,.xml,.nmap etc.) and run Vanquish again.")
         print Color.cyan()
         print("Configuration file: " + str(self.args.configFile))
         print("Attack plan file:   " + str(self.args.attackPlanFile))
