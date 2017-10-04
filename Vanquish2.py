@@ -320,17 +320,17 @@ class Vanquish:
         self.args = self.parser.parse_args()
         self.hosts = self.args.hostFile
 
+        # Installation Setup
+        if self.args.install:
+            self.args.configFile = "install.ini"
+            self.args.attackPlanFile = "installplan.ini"
+
         # load config
         self.config = ConfigParser.ConfigParser()
         self.config.read(self.args.configFile)
 
         Logger.VERBOSE = (self.config.getboolean("System", "Verbose") or self.args.verbose)
         Logger.DEBUG = (self.config.getboolean("System", "Debug") or self.args.debug)
-
-        # Installation Setup
-        if self.args.install:
-            self.args.configFile = "install.ini"
-            self.args.attackPlanFile = "installplan.ini"
 
         # Default output location
         if self.args.outputFolder == "":
