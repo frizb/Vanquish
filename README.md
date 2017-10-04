@@ -17,4 +17,4 @@ Vanquish can be installed on Kali Linux using the following commands:
     python Vanquish2.py -install
     vanquish --help
 
-<script type="text/javascript" src="https://asciinema.org/a/87e2AIjr9ZVF6RM8B9ObDNcEX.js" id="asciicast-87e2AIjr9ZVF6RM8B9ObDNcEX" async></script>
+[![asciicast](https://asciinema.org/a/87e2AIjr9ZVF6RM8B9ObDNcEX.png)](https://asciinema.org/a/87e2AIjr9ZVF6RM8B9ObDNcEX)
