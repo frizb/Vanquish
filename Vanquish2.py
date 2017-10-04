@@ -59,8 +59,8 @@ Main application logic and automation functions
 """
 from parser import ParserError
 
-__version__ = '0.24'
-__lastupdated__ = 'September 8, 2017'
+__version__ = '0.25'
+__lastupdated__ = 'October 1, 2017'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
 __accounce_label__ = 'announce'
@@ -282,6 +282,8 @@ class Vanquish:
         self.parser = argparse.ArgumentParser(
             description='Boot2Root automation platform designed to systematically enumernate and exploit using the'
                         ' law of diminishing returns.')
+        self.parser.add_argument("-install", action='store_true',
+                                 help='Install Vanquish and it\'s requirements')
         self.parser.add_argument("-outputFolder", metavar='folder', type=str, default="",
                                  help='output folder path (default: name of the host file))')
         self.parser.add_argument("-configFile", metavar='file', type=str, default="config.ini",
@@ -325,12 +327,16 @@ class Vanquish:
         Logger.VERBOSE = (self.config.getboolean("System", "Verbose") or self.args.verbose)
         Logger.DEBUG = (self.config.getboolean("System", "Debug") or self.args.debug)
 
+        # Installation Setup
+        if self.args.install:
+            self.args.configFile = "install.ini"
+            self.args.attackPlanFile = "installplan.ini"
 
         # Default output location
         if self.args.outputFolder == "":
             self.args.outputFolder = "." + os.path.sep + str(self.args.hostFile.name).split(".")[0]
 
-	# Nmap scan output folder
+	    # Nmap scan output folder
         self.nmap_path = os.path.join(self.args.outputFolder, __nmap_folder__)
 
         # Check folder for existing output and nmap folders
@@ -338,11 +344,12 @@ class Vanquish:
             os.makedirs(self.args.outputFolder)
         elif not self.args.noResume:
             print Color.yellow()+"[*]"+Color.reset()+" Resuming previous session"
-	if not os.path.exists(self.nmap_path):
-            os.makedirs(self.nmap_path)
 
-	if self.args.noColor:
-		Color.ENABLE_COLOR = False;
+        if not os.path.exists(self.nmap_path):
+                os.makedirs(self.nmap_path)
+
+        if self.args.noColor:
+            Color.ENABLE_COLOR = False;
 
         # Metasploit workspace name - the workspace name is the name of the host file minus it's extension
         if self.args.workspace == "":
