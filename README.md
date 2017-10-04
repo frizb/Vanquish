@@ -1,70 +1,20 @@
-# Vanquish
-Multithreaded Kali Linux scanning and enumeration automation platform.
-Designed to systematically enumerate and exploit using the law of diminishing returns.
-Includes :
-  * Nmap Scanning
-  * GoBuster
-  * Nikto
-  * SSH
-  * mySQL
-  * MSSql
-  * RDP
-  * SMB
-  * SMTP
-  * SNMP
-  * SSH
-  * FTP
-  * DNS
-  * Web
- 
-Vanquish Version: 0.9 Updated: June 18, 2017
+# Vanquish – Get to Shell
+Vanquish is Kali Linux based Enumeration Orchestrator.  Vanquish leverages the opensource enumeration tools on Kali to perform multiple active information gathering phases. The results of each phase are fed into the next phase to identify vulnerabilities that could be leveraged for a remote shell.  
 
-  Use the -h parameter for help.
-  
-usage: Vanquish2.py [-h] [-outputFolder folder] [-configFile file]
+## Vanquish Features
+So what is so special about Vanquish compared to other enumeration scripts?
+  1.	Multi-threaded and scans multiple hosts at once.
+  2.	Configurable – all commands are configured in a separate .ini file for ease of adjustment
+  3.	Multiphase – Optimized to run the fastest enumeration commands first in order to get actionable results as quickly as possible.
+  4.	Intelligent - Feeds the findings from one phase into the next in order to uncover deeper vulnerabilities.
 
-                    [-attackPlanFile file] [-hostFile file] [-domain domain]
-                    
-                    [-reportFile report] [-noResume] [-threadPool threads]
-                    
-                    [-phase phase] [-noExploitSearch] [-logging] [-verbose]
-                    
-                    [-debug]
-                    
+## Getting Started
 
+Vanquish can be installed on Kali Linux using the following commands:
 
-Root2Boot automation platform designed to systematically enumernate and
+    git clone https://github.com/frizb/Vanquish
+    cd Vanquish
+    python Vanquish2.py -install
+    vanquish --help
 
-exploit using the law of diminishing returns.
-
-
-optional arguments:
-
-  -h, --help            show this help message and exit
-  
-  -outputFolder folder  output folder path (default: ./output)
-  
-  -configFile file      configuration ini file (default: config.ini)
-  
-  -attackPlanFile file  attack plan ini file (default: attackplan.ini)
-  
-  -hostFile file        list of hosts to attack (default: hosts.txt)
-  
-  -domain domain        domain to use in DNS enumeration (default: thinc.local)
-  
-  -reportFile report    filename used for the report (default: report.txt)
-  
-  -noResume             do not resume a previous session
-  
-  -threadPool threads   Thread Pool Size (default: 8)
-  
-  -phase phase          only execute a specific phase
-  
-  -noExploitSearch      disable searchspolit exploit searching
-  
-  -logging              enable verbose and debug data logging to files
-  
-  -verbose              display verbose details during the scan
-  
-  -debug                display debug details during the scan
-  
+<script type="text/javascript" src="https://asciinema.org/a/87e2AIjr9ZVF6RM8B9ObDNcEX.js" id="asciicast-87e2AIjr9ZVF6RM8B9ObDNcEX" async></script>
