@@ -3,10 +3,12 @@ Vanquish is Kali Linux based Enumeration Orchestrator.  Vanquish leverages the o
 
 ## Vanquish Features
 So what is so special about Vanquish compared to other enumeration scripts?
-  1.	Multi-threaded and scans multiple hosts at once.
-  2.	Configurable – all commands are configured in a separate .ini file for ease of adjustment
-  3.	Multiphase – Optimized to run the fastest enumeration commands first in order to get actionable results as quickly as possible.
-  4.	Intelligent - Feeds the findings from one phase into the next in order to uncover deeper vulnerabilities.
+    1.	*Multi-threaded* – Runs multiple commands and scans multiple hosts simultaneously.
+    2.	*Configurable* – All commands are configured in a separate .ini file for ease of adjustment
+    3.	*Multiphase* – Optimized to run the fastest enumeration commands first in order to get actionable results as quickly as possible.
+    4.	*Intelligent* – Feeds the findings from one phase into the next in order to uncover deeper vulnerabilities.
+    5.	*Modular* – New attack plans and commands configurations can be easily built for fit for purpose enumeration orchestration.
+
 
 ## Getting Started
 
