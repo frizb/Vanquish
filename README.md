@@ -33,6 +33,8 @@ Once Vanquish is installed you can scan hosts for leveraging the best of breed K
     ls -la
 
 ## What Kali Tools does Vanquish leverage?
+| | | | 
+----------
 | NMap | Hydra | Nikto | Metasploit |
 | Gobuster | Dirb | Exploitdb | Nbtscan |
 | Ntpq | Enum4linux | Smbclient | Rpcclient |
