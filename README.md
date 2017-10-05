@@ -1,6 +1,6 @@
 # Vanquish – Get to Shell
 
-[![Vanquish - Kali Linux Enumeration ORchestrator](https://raw.githubusercontent.com/frizb/Vanquish/master/Vanquish.png)]
+<center>![Vanquish - Kali Linux Enumeration ORchestrator](https://raw.githubusercontent.com/frizb/Vanquish/master/Vanquish.png)</center>
 
 Vanquish is Kali Linux based Enumeration Orchestrator.  Vanquish leverages the opensource enumeration tools on Kali to perform multiple active information gathering phases. The results of each phase are fed into the next phase to identify vulnerabilities that could be leveraged for a remote shell.  
 
