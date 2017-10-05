@@ -33,8 +33,6 @@ Once Vanquish is installed you can scan hosts for leveraging the best of breed K
     ls -la
 
 ## What Kali Tools does Vanquish leverage?
-| | | | 
-----------
 | NMap | Hydra | Nikto | Metasploit |
 | Gobuster | Dirb | Exploitdb | Nbtscan |
 | Ntpq | Enum4linux | Smbclient | Rpcclient |
@@ -54,10 +52,10 @@ Once Vanquish is installed you can scan hosts for leveraging the best of breed K
 - **CTRL + Z**
     CTRL + Z to exit Vanquish.
     
--  **Resume Mode **
+- **Resume Mode **
     Vanquish will skip running a command again if it sees that the output files already exist.
 
--  **Re-run an enumeration command
+- **Re-run an enumeration command
     If you want to re-execute a command, delete the output files (.txt,.xml,.nmap etc.) and run Vanquish again.
 
 ## Commandline Arguments
