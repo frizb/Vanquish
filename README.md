@@ -32,25 +32,17 @@ Once Vanquish is installed you can scan hosts for leveraging the best of breed K
     cd 192_168_126_133
     ls -la
 
-## What Kali Tools does it leverage?
-NMap | Hydra
-Nikto | Metasploit
-Gobuster | Dirb
-Exploitdb | Nbtscan
-Ntpq | Enum4linux 
-Smbclient | Rpcclient
-Onesixtyone | Sslscan 
-Sslyze | Snmpwalk 
-Ident-user-enum | Smtp-user-enum
-Snmp-check | Cisco-torch 
-Dnsrecon | Dig
-Whatweb | Wafw00f 
-Wpscan | Cewl 
-Curl | Mysql
-Nmblookup | Searchsploit
-Nbtscan-unixwiz | Xprobe2
+## What Kali Tools does Vanquish leverage?
+| NMap | Hydra | Nikto | Metasploit |
+| Gobuster | Dirb | Exploitdb | Nbtscan |
+| Ntpq | Enum4linux | Smbclient | Rpcclient |
+| Onesixtyone | Sslscan | Sslyze | Snmpwalk |
+| Ident-user-enum | Smtp-user-enum | Snmp-check | Cisco-torch |
+| Dnsrecon | Dig | Whatweb | Wafw00f |
+| Wpscan | Cewl  | Curl | Mysql | Nmblookup | Searchsploit |
+| Nbtscan-unixwiz | Xprobe2 | Blindelephant | Showmount |
 
-## Using Vanquish
+## Running Vanquish
 
 - **CTRL + C**
     CTRL + C to exit an enumeration phase and skip to the next phase (helpful if a command is taking too long)
@@ -106,4 +98,14 @@ optional arguments:
   -verbose              display verbose details during the scan
   -debug                display debug details during the scan
 </pre>
+
+## Custom Attack Plans
+
+**GoBuster Max**
+
+GoBuster Max is an attack plan that will run all the web application content detection dictionaries against your targets.
+
+    Vanquish -hostFile test.txt -attackPlanFile ./attackplans/gobuster-max.ini -logging
+    
+[![asciicast](https://asciinema.org/a/U6TvUgVUhLDI4zRKjLpEaY3Ps.png)](https://asciinema.org/a/U6TvUgVUhLDI4zRKjLpEaY3Ps)
 
