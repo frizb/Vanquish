@@ -28,7 +28,7 @@ Vanquish can be installed on Kali Linux using the following commands:
 
 [![asciicast](https://asciinema.org/a/87e2AIjr9ZVF6RM8B9ObDNcEX.png)](https://asciinema.org/a/87e2AIjr9ZVF6RM8B9ObDNcEX)
 
-Once Vanquish is installed you can scan hosts for leveraging the best of breed Kali Linux tools:
+Once Vanquish is installed you can scan hosts by leveraging the best of breed Kali Linux tools:
 
     echo 192.168.126.133 >> test.txt
     vanquish -hostFile test.txt -logging
