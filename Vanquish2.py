@@ -59,8 +59,8 @@ Main application logic and automation functions
 """
 from parser import ParserError
 
-__version__ = '0.25'
-__lastupdated__ = 'October 1, 2017'
+__version__ = '0.26'
+__lastupdated__ = 'January 23, 2018'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
 __accounce_label__ = 'announce'
