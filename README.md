@@ -118,3 +118,51 @@ GoBuster Max is an attack plan that will run all the web application content det
     
 [![asciicast](https://asciinema.org/a/U6TvUgVUhLDI4zRKjLpEaY3Ps.png)](https://asciinema.org/a/U6TvUgVUhLDI4zRKjLpEaY3Ps)
 
+**Hydra Credentials Scanner**
+
+We users love to reuse our passwords across multiple systems. As you explore a network and harvest usernames and passwords, its probably a good idea to check where else those username and passwords are also used.  This attack plan will do exactly that for a single host or across an entire network. Attack plans will also leverage what has been learned about a network from previous scans and will automatically use the discovered services as part of the credential testing.
+
+This attack will use a list of known credentials for a network and test them against all hosts and services that have been discovered.
+Store the credentails in a file in the root of your scan path and name it: credentials.txt
+
+Ex. File containing host list: /root/Documents/Vanquish/myhosts.txt
+    
+    /root/Documents/Vanquish/myhosts/credentails.txt
+
+Store each known credential in username:password format in the text file
+Ex. credentials.txt
+
+    elvis:Password!
+    jamesdean:rockyou
+    justin:12345678
+
+Note: this attack plan does NOT create the >> <output>.txt file so it can be run again and again without havingto delete the output files.  This allows new credentials to be added to the list and the network to be rescanned frequently.
+
+    python Vanquish2.py -hostFile hostlist.txt -attackPlanFile ./attackplans/credentials.ini
+    
+**Hydra Usernames and Passwords List Scanner**
+
+This attack will use a list of known usernames and a list of known passwords for a network and test them against all hosts and services that have been discovered.
+
+Store the usernames in a file in the root of your scan path and name it: usernames.txt
+Ex. File containing host list: /root/Documents/Vanquish/myhosts.txt
+
+    /root/Documents/Vanquish/myhosts/usernames.txt
+    
+Store the passwords in a file in the root of your scan path and name it: passwords.txt
+Ex. File containing host list: /root/Documents/Vanquish/myhosts.txt
+    
+    /root/Documents/Vanquish/myhosts/passwords.txt
+    
+Store each username or password on a new line of the text file
+Ex. usernames.txt
+
+    elvis
+    jamesdean
+    justin
+
+Passwords are stored in a similar manner in the passwords.txt file.
+
+Note: this attack plan does NOT create the >> <output>.txt file so it can be run again and again without having to delete the output files.  This allows new credentials to be added to the list and the network to be rescanned frequently.
+
+    python Vanquish2.py -hostFile hostlist.txt -attackPlanFile ./attackplans/usernamespasswords.ini
