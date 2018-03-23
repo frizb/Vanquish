@@ -9,6 +9,8 @@
 # DONE: Create custom password word list from CEWL URL Findings, Users, domains, groups, ComputerName
 # DONE: Installer script and setup
 
+# TODO: Seclist directory enumeration orchestation / Seclist user enumeration / Seclist brute forcing
+# TODO: Add some FILTERED port results back in if they prodivde enumeration value (MongoDB)
 # TODO: Attack plans config associated with one or more Config files - simplify - only specify an attack plan and a target
 # TODO: Load findings from files here for merging - dont overwrite user added findings...
 # TODO: SMB Hydra is running twice - 139 and 445 - 445 is the only service that returns results - STOP hydra from running 139
@@ -43,6 +45,7 @@
 #       TODO: Spider site
 #       TODO: HTTP Download all assets
 #       TODO: Image Scan - Meta / Steg / OCRd
+#       TODO: Grab screen shots of pages found
 #       Create Site Map txt file for all assets
 #       Create Wordlist version1
 #
@@ -59,8 +62,8 @@ Main application logic and automation functions
 """
 from parser import ParserError
 
-__version__ = '0.26'
-__lastupdated__ = 'January 23, 2018'
+__version__ = '0.29'
+__lastupdated__ = 'March 18, 2018'
 __nmap_folder__ = 'Nmap'
 __findings_label__ = 'findings'
 __accounce_label__ = 'announce'
@@ -567,6 +570,7 @@ class Vanquish:
                                         # Still have a findings tag in the command?  do not add it to the list -
                                         if "<" + __findings_label_dynamic__ + " " in command:
                                             do_not_append = True
+                                            Logger.debug("enumerate() - Did not append command that still contained findings label" + command )
                                         # Findings Lists
                                         if "<" + __findings_label_list_dynamic__ + " " in command:
                                             findings_path = os.path.join(self.args.outputFolder, host.replace(".", "_"))
@@ -574,6 +578,8 @@ class Vanquish:
                                             for findings_file in findings_files:
                                                 replacement = "<" + __findings_label_list_dynamic__ + " " + str(
                                                     findings_file).replace(".txt", "") + ">"
+                                                #TODO Delimited Findings ? REGEX Delim
+                                                #delim = "<" + __findings_label_dynamic__ + " " + str(findings_file).replace(".txt", "") + " .+>"
                                                 if replacement in command:
                                                     findings_file_path = os.path.join(findings_path, findings_file)
                                                     with open(findings_file_path) as f:
