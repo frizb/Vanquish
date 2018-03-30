@@ -123,11 +123,11 @@ GoBuster Max is an attack plan that will run all the web application content det
 We users love to reuse our passwords across multiple systems. As you explore a network and harvest usernames and passwords, its probably a good idea to check where else those username and passwords are also used.  This attack plan will do exactly that for a single host or across an entire network. Attack plans will also leverage what has been learned about a network from previous scans and will automatically use the discovered services as part of the credential testing.
 
 This attack will use a list of known credentials for a network and test them against all hosts and services that have been discovered.
-Store the credentails in a file in the root of your scan path and name it: credentials.txt
+Store the credentials in a file in the root of your scan path and name it: credentials.txt
 
 Ex. File containing host list: /root/Documents/Vanquish/myhosts.txt
     
-    /root/Documents/Vanquish/myhosts/credentails.txt
+    /root/Documents/Vanquish/myhosts/credentials.txt
 
 Store each known credential in username:password format in the text file
 Ex. credentials.txt
